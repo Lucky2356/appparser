@@ -36,6 +36,7 @@ Open:
 - Favorites
 - Tracked products screen
 - Price history for tracked products
+- Product identity matching for tracked price refreshes
 - In-app notifications for price drops and target price hits
 - Optional Telegram notifications through Bot API
 - Hourly Celery beat task for tracked product refresh

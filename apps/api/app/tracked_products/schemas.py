@@ -7,7 +7,9 @@ from app.schemas import CamelModel
 
 class TrackedProductCreate(CamelModel):
     marketplace: str
+    external_id: str | None = Field(default=None, max_length=160)
     title: str = Field(min_length=2, max_length=500)
+    image_url: str | None = None
     product_url: str = Field(min_length=8)
     target_price: float | None = Field(default=None, ge=0)
     last_price: float | None = Field(default=None, ge=0)
@@ -21,7 +23,9 @@ class TrackedProductFromOffer(CamelModel):
 class TrackedProductRead(CamelModel):
     id: str
     marketplace: str
+    external_id: str | None = None
     title: str
+    image_url: str | None = None
     product_url: str
     target_price: float | None = None
     last_price: float | None = None

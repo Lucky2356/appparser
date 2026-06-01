@@ -49,7 +49,9 @@ export function TrackedProductsPage() {
       const created = await api.createTrackedProduct(
         {
           marketplace,
+          externalId: null,
           title,
+          imageUrl: null,
           productUrl,
           targetPrice: targetPrice ? Number(targetPrice) : null,
           lastPrice: null

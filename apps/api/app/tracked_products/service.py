@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Notification, Offer, PriceHistory, TrackedProduct
 from app.notifications.delivery import deliver_telegram_notification
-from market_parser.models import SearchFilters, SearchParams
+from market_parser.models import MarketplaceOffer, SearchFilters, SearchParams
 from market_parser.scoring import rank_offers
 from market_parser.service import collect_offers
 
@@ -14,7 +14,9 @@ def create_tracked_product(
     *,
     user_id: str,
     marketplace: str,
+    external_id: str | None,
     title: str,
+    image_url: str | None,
     product_url: str,
     target_price: float | None,
     last_price: float | None,
@@ -22,7 +24,9 @@ def create_tracked_product(
     item = TrackedProduct(
         user_id=user_id,
         marketplace=marketplace,
+        external_id=external_id,
         title=title,
+        image_url=image_url,
         product_url=product_url,
         target_price=target_price,
         last_price=last_price,
@@ -50,7 +54,9 @@ def create_tracked_product_from_offer(
         db,
         user_id=user_id,
         marketplace=offer.marketplace,
+        external_id=offer.external_id,
         title=offer.title,
+        image_url=offer.image_url,
         product_url=offer.product_url,
         target_price=target_price,
         last_price=offer.price,
@@ -69,7 +75,7 @@ def refresh_tracked_product(db: Session, item: TrackedProduct) -> TrackedProduct
     if not ranked:
         return item
 
-    best_match = ranked[0]
+    best_match = find_best_tracked_match(item, ranked)
     previous_price = item.last_price
     item.last_price = best_match.price
     item.last_checked_at = datetime.now(timezone.utc)
@@ -78,6 +84,17 @@ def refresh_tracked_product(db: Session, item: TrackedProduct) -> TrackedProduct
     db.commit()
     db.refresh(item)
     return item
+
+
+def find_best_tracked_match(item: TrackedProduct, offers: list[MarketplaceOffer]) -> MarketplaceOffer:
+    if item.external_id:
+        for offer in offers:
+            if offer.external_id == item.external_id:
+                return offer
+    for offer in offers:
+        if offer.product_url == item.product_url:
+            return offer
+    return offers[0]
 
 
 def maybe_create_price_notification(

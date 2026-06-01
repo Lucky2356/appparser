@@ -57,3 +57,5 @@ Alembic migrations live in `apps/api/migrations`. Docker runs `alembic upgrade h
 Tracked product refreshes write price history. When a price drops or reaches a target price, the backend creates an in-app notification. Docker includes a Celery beat service that schedules refreshes hourly.
 
 Telegram delivery is optional. Set `TELEGRAM_BOT_TOKEN`, then users can add their chat ID in Settings. The app keeps in-app notifications even when Telegram delivery is disabled or fails.
+
+Tracked products store marketplace `external_id` when they are created from search results. Refreshes first try to match the same normalized offer by `external_id`, then by URL, then fall back to the best current search result.

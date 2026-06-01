@@ -15,6 +15,7 @@ def test_create_list_delete_tracked_product(client: TestClient, auth_headers: di
     )
     assert create_response.status_code == 200
     tracked_id = create_response.json()["id"]
+    assert create_response.json()["externalId"] is None
 
     list_response = client.get("/tracked-products", headers=auth_headers)
     assert list_response.status_code == 200
@@ -48,6 +49,7 @@ def test_track_offer_history_and_refresh(client: TestClient, auth_headers: dict[
     assert track_response.status_code == 200
     tracked_id = track_response.json()["id"]
     assert track_response.json()["lastPrice"] == results[0]["price"]
+    assert track_response.json()["externalId"] == results[0]["externalId"]
 
     history_response = client.get(f"/tracked-products/{tracked_id}/price-history", headers=auth_headers)
     assert history_response.status_code == 200

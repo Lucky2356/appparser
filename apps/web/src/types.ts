@@ -101,7 +101,9 @@ export type Favorite = {
 export type TrackedProduct = {
   id: string;
   marketplace: string;
+  externalId?: string | null;
   title: string;
+  imageUrl?: string | null;
   productUrl: string;
   targetPrice?: number | null;
   lastPrice?: number | null;
