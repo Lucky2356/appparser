@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24 * 7
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
     auto_create_tables: bool = True
+    telegram_bot_token: str | None = None
+    telegram_timeout_seconds: float = 8
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

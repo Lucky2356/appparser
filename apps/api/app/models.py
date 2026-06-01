@@ -21,6 +21,8 @@ class User(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    telegram_notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     searches: Mapped[list["Search"]] = relationship(back_populates="user")

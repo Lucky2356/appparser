@@ -1,6 +1,8 @@
 export type User = {
   id: string;
   email: string;
+  telegramChatId?: string | null;
+  telegramNotificationsEnabled: boolean;
 };
 
 export type AuthResponse = {
@@ -103,6 +105,7 @@ export type TrackedProduct = {
   productUrl: string;
   targetPrice?: number | null;
   lastPrice?: number | null;
+  lastCheckedAt?: string | null;
   createdAt: string;
 };
 
@@ -121,4 +124,10 @@ export type Notification = {
   entityId?: string | null;
   isRead: boolean;
   createdAt: string;
+};
+
+export type UserSettings = {
+  email: string;
+  telegramChatId?: string | null;
+  telegramNotificationsEnabled: boolean;
 };

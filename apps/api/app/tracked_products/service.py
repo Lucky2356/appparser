@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.models import Notification, Offer, PriceHistory, TrackedProduct
+from app.notifications.delivery import deliver_telegram_notification
 from market_parser.models import SearchFilters, SearchParams
 from market_parser.scoring import rank_offers
 from market_parser.service import collect_offers
@@ -111,6 +112,8 @@ def maybe_create_price_notification(
             entity_id=item.id,
         )
     )
+    if item.user:
+        deliver_telegram_notification(item.user, f"{title}\n{message.replace(',', ' ')}")
     item.last_notified_price = current_price
 
 

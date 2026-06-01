@@ -37,6 +37,7 @@ Open:
 - Tracked products screen
 - Price history for tracked products
 - In-app notifications for price drops and target price hits
+- Optional Telegram notifications through Bot API
 - Hourly Celery beat task for tracked product refresh
 - Parser cache and per-marketplace rate limiting
 - Optional Wildberries HTTP adapter in `PARSER_MODE=hybrid`

@@ -59,6 +59,11 @@ Create search:
 - `POST /notifications/{notificationId}/read`
 - `DELETE /notifications/{notificationId}`
 
+## Settings
+
+- `GET /settings`
+- `PUT /settings`
+
 ## Tracked products
 
 - `POST /tracked-products`

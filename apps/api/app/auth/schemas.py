@@ -6,6 +6,8 @@ from app.schemas import CamelModel
 class UserRead(CamelModel):
     id: str
     email: str
+    telegram_chat_id: str | None = None
+    telegram_notifications_enabled: bool = False
 
 
 class RegisterRequest(CamelModel):

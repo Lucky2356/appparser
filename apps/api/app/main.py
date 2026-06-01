@@ -13,6 +13,7 @@ from app.marketplaces.routes import router as marketplaces_router
 from app.notifications.routes import router as notifications_router
 from app.searches.routes import router as searches_router
 from app.tracked_products.routes import router as tracked_products_router
+from app.user_settings.routes import router as user_settings_router
 
 
 @asynccontextmanager
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     app.include_router(searches_router)
     app.include_router(favorites_router)
     app.include_router(tracked_products_router)
+    app.include_router(user_settings_router)
     return app
 
 

@@ -10,7 +10,8 @@ import type {
   SearchItem,
   SearchResults,
   TrackedProduct,
-  User
+  User,
+  UserSettings
 } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "/api";
@@ -161,5 +162,14 @@ export const api = {
     request<void>(`/notifications/${id}`, {
       method: "DELETE",
       token
+    }),
+
+  settings: (token: string) => request<UserSettings>("/settings", { token }),
+
+  updateSettings: (payload: Omit<UserSettings, "email">, token: string) =>
+    request<UserSettings>("/settings", {
+      method: "PUT",
+      token,
+      body: JSON.stringify(payload)
     })
 };
