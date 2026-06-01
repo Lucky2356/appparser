@@ -87,9 +87,23 @@ export function TrackedProductsPage() {
     setHistory((current) => ({ ...current, [id]: points }));
   }
 
+  async function refreshAll() {
+    if (!token) return;
+    await api.refreshAllTrackedProducts(token);
+    await load();
+  }
+
   return (
     <>
-      <PageHeader title="Отслеживание" />
+      <PageHeader
+        title="Отслеживание"
+        actions={
+          <button className="secondary-button" onClick={refreshAll} type="button">
+            <RefreshCw size={17} />
+            Обновить все
+          </button>
+        }
+      />
 
       <form
         className="mb-5 grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-soft dark:border-slate-800 dark:bg-slate-900 lg:grid-cols-[160px_1fr_1.4fr_160px_auto]"

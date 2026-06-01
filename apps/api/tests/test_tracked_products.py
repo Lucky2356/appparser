@@ -59,6 +59,10 @@ def test_track_offer_history_and_refresh(client: TestClient, auth_headers: dict[
     refreshed_history = client.get(f"/tracked-products/{tracked_id}/price-history", headers=auth_headers)
     assert len(refreshed_history.json()) >= 2
 
+    refresh_all = client.post("/tracked-products/refresh-all", headers=auth_headers)
+    assert refresh_all.status_code == 200
+    assert refresh_all.json()["refreshed"] == 1
+
     notifications = client.get("/notifications", headers=auth_headers)
     assert notifications.status_code == 200
     assert notifications.json()[0]["type"] == "target_price_reached"

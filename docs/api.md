@@ -66,6 +66,7 @@ Create search:
 - `GET /tracked-products`
 - `GET /tracked-products/{trackedProductId}/price-history`
 - `POST /tracked-products/{trackedProductId}/refresh`
+- `POST /tracked-products/refresh-all`
 - `DELETE /tracked-products/{trackedProductId}`
 
 ## Marketplaces

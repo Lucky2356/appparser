@@ -6,6 +6,7 @@ from app.dependencies import get_current_user
 from app.models import Offer, PriceHistory, Search, TrackedProduct, User
 from app.tracked_products.schemas import (
     PriceHistoryRead,
+    RefreshAllResponse,
     TrackedProductCreate,
     TrackedProductFromOffer,
     TrackedProductRead,
@@ -123,3 +124,16 @@ def refresh_tracked(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tracked product not found")
 
     return refresh_tracked_product(db, item)
+
+
+@router.post("/tracked-products/refresh-all", response_model=RefreshAllResponse)
+def refresh_all_tracked(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> RefreshAllResponse:
+    items = db.query(TrackedProduct).filter(TrackedProduct.user_id == user.id).all()
+    refreshed = 0
+    for item in items:
+        refresh_tracked_product(db, item)
+        refreshed += 1
+    return RefreshAllResponse(refreshed=refreshed)

@@ -34,3 +34,7 @@ class PriceHistoryRead(CamelModel):
     tracked_product_id: str
     price: float
     collected_at: datetime
+
+
+class RefreshAllResponse(CamelModel):
+    refreshed: int

@@ -135,6 +135,12 @@ export const api = {
       token
     }),
 
+  refreshAllTrackedProducts: (token: string) =>
+    request<{ refreshed: number }>("/tracked-products/refresh-all", {
+      method: "POST",
+      token
+    }),
+
   deleteTrackedProduct: (id: string, token: string) =>
     request<void>(`/tracked-products/${id}`, {
       method: "DELETE",
