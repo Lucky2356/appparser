@@ -1,6 +1,6 @@
 # Appsparcer
 
-MVP web app for finding value offers across marketplaces. The first version uses mock Ozon and Wildberries adapters so the product flow, API, database, queue, scoring, history, and favorites work before real parsers are connected.
+Web app for finding value offers across marketplaces. The product flow, API, database, queue, scoring, history, favorites, tracked products, and notifications work with deterministic mock data by default and can switch to best-effort live marketplace collection.
 
 ## Stack
 
@@ -41,7 +41,8 @@ Open:
 - Optional Telegram notifications through Bot API
 - Hourly Celery beat task for tracked product refresh
 - Parser cache and per-marketplace rate limiting
-- Optional Wildberries HTTP adapter in `PARSER_MODE=hybrid`
+- Best-effort Ozon and Wildberries live adapters in `PARSER_MODE=hybrid`
+- Runtime parser logs showing whether data came from `mock`, `live`, `fallback`, or `failed` sources
 - PWA manifest and service worker
 - Alembic migrations
 - Backend smoke tests
@@ -49,6 +50,14 @@ Open:
 - Docker-ready local environment
 
 ## Development
+
+Parser modes:
+
+- `PARSER_MODE=mock`: deterministic local data, default for tests and development.
+- `PARSER_MODE=hybrid`: tries live Ozon/Wildberries collection first, then falls back to mock data if a source rate-limits, blocks, or returns an unexpected page.
+- `PARSER_MODE=real`: uses only live adapters and records adapter failures instead of fallback data.
+
+Live collection uses `PARSER_HTTP_TIMEOUT_SECONDS`, `PARSER_USER_AGENT`, and `WILDBERRIES_DEST` from the environment. Marketplace pages and private endpoints can rate-limit or block automated requests, so the app keeps source status visible in result logs.
 
 Backend:
 

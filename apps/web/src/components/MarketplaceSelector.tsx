@@ -37,6 +37,9 @@ export function MarketplaceSelector({ marketplaces, selected, onChange }: Props)
             <span>
               <span className="block text-sm font-semibold">{marketplace.name}</span>
               {marketplace.isMock ? <span className="text-xs text-slate-500">mock</span> : null}
+              {!marketplace.isMock ? (
+                <span className="text-xs text-slate-500">{marketplace.sourceMode === "real" ? "live" : "live + fallback"}</span>
+              ) : null}
             </span>
             <span
               className={[

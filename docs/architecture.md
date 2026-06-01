@@ -15,11 +15,11 @@ The frontend never talks to marketplaces directly. It creates a search task thro
 
 - `apps/web`: user interface, auth state, search workflow, history, favorites, tracked products.
 - `apps/api`: REST API, persistence, authorization, task scheduling.
-- `services/parser`: marketplace adapter contract, mock Ozon/Wildberries adapters, normalization, score calculation.
+- `services/parser`: marketplace adapter contract, Ozon/Wildberries adapters, normalization, score calculation.
 
 ## Parser strategy
 
-The MVP intentionally uses mock adapters. The adapter interface already models the real boundary:
+The stable local default is deterministic mock data, while `hybrid` and `real` modes use best-effort live adapters. The adapter interface keeps that boundary narrow:
 
 ```py
 class MarketplaceAdapter:
@@ -29,11 +29,11 @@ class MarketplaceAdapter:
         ...
 ```
 
-Real adapters should add legal source checks, robots.txt awareness where applicable, structured logging, and defensive parsing. A broken adapter must return a log entry or raise an adapter-scoped error without failing the whole search.
+Live adapters use defensive parsing, explicit timeouts, source-specific errors, and per-adapter runtime status. A broken adapter returns a parser log entry or raises an adapter-scoped error without failing the whole search.
 
 The current parser layer already includes in-process TTL caching and per-marketplace rate limiting. In production, this can be swapped to Redis-backed cache/limits without changing adapter contracts.
 
-`PARSER_MODE=mock` is the stable default. `PARSER_MODE=hybrid` enables best-effort HTTP collection where an adapter supports it and falls back to mock data if the source is unavailable. `PARSER_MODE=real` disables fallback for adapters that implement live collection.
+`PARSER_MODE=mock` is the stable default. `PARSER_MODE=hybrid` enables best-effort HTTP collection and falls back to mock data if the source rate-limits, blocks, or returns an unexpected page. `PARSER_MODE=real` disables fallback for adapters that implement live collection. Result logs include `Adapter source: mock/live/fallback/failed` so operators can see what happened for each marketplace.
 
 ## Scoring
 

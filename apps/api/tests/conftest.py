@@ -14,6 +14,7 @@ os.environ["REDIS_URL"] = "redis://127.0.0.1:6390/0"
 os.environ["JWT_SECRET"] = "test-secret"
 os.environ["AUTO_CREATE_TABLES"] = "true"
 os.environ["CORS_ORIGINS"] = "http://testserver"
+os.environ["PARSER_MODE"] = "mock"
 
 from app.db.base import Base  # noqa: E402
 from app.db.session import engine  # noqa: E402

@@ -16,6 +16,7 @@ export type Marketplace = {
   name: string;
   enabled: boolean;
   isMock: boolean;
+  sourceMode: string;
 };
 
 export type SearchFilters = {
