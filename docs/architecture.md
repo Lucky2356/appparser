@@ -33,6 +33,8 @@ Real adapters should add legal source checks, robots.txt awareness where applica
 
 The current parser layer already includes in-process TTL caching and per-marketplace rate limiting. In production, this can be swapped to Redis-backed cache/limits without changing adapter contracts.
 
+`PARSER_MODE=mock` is the stable default. `PARSER_MODE=hybrid` enables best-effort HTTP collection where an adapter supports it and falls back to mock data if the source is unavailable. `PARSER_MODE=real` disables fallback for adapters that implement live collection.
+
 ## Scoring
 
 Offers are ranked by weighted factors:
@@ -49,3 +51,7 @@ Weights live in `services/parser/market_parser/scoring.py` and are intentionally
 ## Database lifecycle
 
 Alembic migrations live in `apps/api/migrations`. Docker runs `alembic upgrade head` before starting API and worker containers. `AUTO_CREATE_TABLES=true` remains available for quick local SQLite development only.
+
+## Notifications
+
+Tracked product refreshes write price history. When a price drops or reaches a target price, the backend creates an in-app notification. Docker includes a Celery beat service that schedules refreshes hourly.

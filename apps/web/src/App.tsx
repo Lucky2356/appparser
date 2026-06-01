@@ -4,6 +4,7 @@ import { ProtectedLayout } from "./components/ProtectedLayout";
 import { FavoritesPage } from "./pages/FavoritesPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { LoginPage } from "./pages/LoginPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { ResultsPage } from "./pages/ResultsPage";
 import { SearchPage } from "./pages/SearchPage";
@@ -27,6 +28,7 @@ export function App() {
         <Route path="/search" element={<SearchPage />} />
         <Route path="/results/:searchId" element={<ResultsPage />} />
         <Route path="/history" element={<HistoryPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/favorites" element={<FavoritesPage />} />
         <Route path="/tracked" element={<TrackedProductsPage />} />
         <Route path="/settings" element={<SettingsPage />} />

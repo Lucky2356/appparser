@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -7,13 +7,14 @@ import { PageHeader } from "../components/PageHeader";
 import { ProductCard } from "../components/ProductCard";
 import { EmptyState, ErrorState, LoadingState } from "../components/States";
 import { useAuth } from "../state/AuthContext";
-import type { Offer, SearchItem } from "../types";
+import type { Offer, ParserLog, SearchItem } from "../types";
 
 export function ResultsPage() {
   const { searchId } = useParams();
   const { token } = useAuth();
   const [search, setSearch] = useState<SearchItem | null>(null);
   const [results, setResults] = useState<Offer[]>([]);
+  const [logs, setLogs] = useState<ParserLog[]>([]);
   const [error, setError] = useState("");
   const [favoriteMessage, setFavoriteMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -21,12 +22,14 @@ export function ResultsPage() {
   const load = useCallback(async () => {
     if (!token || !searchId) return;
     try {
-      const [searchResponse, resultResponse] = await Promise.all([
+      const [searchResponse, resultResponse, logsResponse] = await Promise.all([
         api.getSearch(searchId, token),
-        api.getSearchResults(searchId, token)
+        api.getSearchResults(searchId, token),
+        api.getSearchLogs(searchId, token)
       ]);
       setSearch(searchResponse);
       setResults(resultResponse.results);
+      setLogs(logsResponse);
       setError(searchResponse.status === "failed" ? searchResponse.error ?? "Поиск завершился ошибкой" : "");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Не удалось загрузить результаты");
@@ -77,6 +80,30 @@ export function ResultsPage() {
               <RefreshCw size={17} />
               Обновить
             </button>
+            {searchId && token ? (
+              <a
+                className="secondary-button"
+                href={api.searchResultsCsvUrl(searchId)}
+                onClick={(event) => {
+                  event.preventDefault();
+                  fetch(api.searchResultsCsvUrl(searchId), {
+                    headers: { Authorization: `Bearer ${token}` }
+                  })
+                    .then((response) => response.blob())
+                    .then((blob) => {
+                      const url = URL.createObjectURL(blob);
+                      const link = document.createElement("a");
+                      link.href = url;
+                      link.download = `search-${searchId}.csv`;
+                      link.click();
+                      URL.revokeObjectURL(url);
+                    });
+                }}
+              >
+                <Download size={17} />
+                CSV
+              </a>
+            ) : null}
             <Link className="primary-button" to="/search">
               Новый поиск
             </Link>
@@ -94,6 +121,22 @@ export function ResultsPage() {
 
       {isLoading ? <LoadingState label="Получаем результаты" /> : null}
       {error ? <ErrorState message={error} /> : null}
+      {logs.length ? (
+        <div className="mb-4 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900">
+          <div className="mb-2 font-semibold text-slate-700 dark:text-slate-200">Логи источников</div>
+          <div className="flex flex-wrap gap-2">
+            {logs.map((log) => (
+              <span
+                key={log.id}
+                className="rounded-md border border-slate-200 px-2 py-1 dark:border-slate-700"
+                title={new Date(log.createdAt).toLocaleString("ru-RU")}
+              >
+                {log.marketplace}: {log.message}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {!isLoading && !error && search?.status === "processing" ? <LoadingState label="Поиск выполняется" /> : null}
       {!isLoading && !error && search?.status === "completed" && results.length === 0 ? (
         <EmptyState label="Подходящих предложений не найдено" />

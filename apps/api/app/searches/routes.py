@@ -1,12 +1,23 @@
+import csv
+from io import StringIO
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from redis import Redis
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
 from app.dependencies import get_current_user
-from app.models import Offer, Search, User
-from app.searches.schemas import OfferRead, SearchCreate, SearchCreated, SearchRead, SearchResults
+from app.models import Offer, ParserLog, Search, User
+from app.searches.schemas import (
+    OfferRead,
+    ParserLogRead,
+    SearchCreate,
+    SearchCreated,
+    SearchRead,
+    SearchResults,
+)
 from app.searches.service import process_search
 from app.workers.tasks import process_search_task
 
@@ -94,4 +105,61 @@ def get_search_results(
         search_id=search.id,
         status=search.status,
         results=[OfferRead.model_validate(offer) for offer in offers],
+    )
+
+
+@router.get("/search/{search_id}/logs", response_model=list[ParserLogRead])
+def get_search_logs(
+    search_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[ParserLog]:
+    search = db.get(Search, search_id)
+    if not search or search.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Search not found")
+
+    return (
+        db.query(ParserLog)
+        .filter(ParserLog.search_id == search.id)
+        .order_by(ParserLog.created_at.asc())
+        .all()
+    )
+
+
+@router.get("/search/{search_id}/results.csv")
+def export_search_results_csv(
+    search_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
+    search = db.get(Search, search_id)
+    if not search or search.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Search not found")
+
+    offers = (
+        db.query(Offer)
+        .filter(Offer.search_id == search.id)
+        .order_by(Offer.score.desc(), Offer.price.asc())
+        .all()
+    )
+    buffer = StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["marketplace", "title", "price", "rating", "reviews_count", "score", "product_url"])
+    for offer in offers:
+        writer.writerow(
+            [
+                offer.marketplace,
+                offer.title,
+                offer.price,
+                offer.rating,
+                offer.reviews_count,
+                offer.score,
+                offer.product_url,
+            ]
+        )
+
+    return Response(
+        content=buffer.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="search-{search.id}.csv"'},
     )

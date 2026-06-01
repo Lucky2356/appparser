@@ -25,6 +25,7 @@ class TrackedProductRead(CamelModel):
     product_url: str
     target_price: float | None = None
     last_price: float | None = None
+    last_checked_at: datetime | None = None
     created_at: datetime
 
 

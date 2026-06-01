@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        working-directory: apps/api
+        run: pip install -r requirements.txt
+      - name: Run backend tests
+        working-directory: apps/api
+        env:
+          PYTHONPATH: ${{ github.workspace }}/apps/api:${{ github.workspace }}/services/parser
+        run: python -m pytest -q
+      - name: Check migrations
+        working-directory: apps/api
+        env:
+          PYTHONPATH: ${{ github.workspace }}/apps/api:${{ github.workspace }}/services/parser
+          DATABASE_URL: sqlite:///./ci_migration.sqlite3
+        run: alembic -c alembic.ini upgrade head
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: apps/web
+        run: npm ci
+      - name: Build frontend
+        working-directory: apps/web
+        run: npm run build

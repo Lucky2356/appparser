@@ -43,7 +43,7 @@ def test_track_offer_history_and_refresh(client: TestClient, auth_headers: dict[
     track_response = client.post(
         "/tracked-products/from-offer",
         headers=auth_headers,
-        json={"offerId": results[0]["id"], "targetPrice": results[0]["price"] - 500},
+        json={"offerId": results[0]["id"], "targetPrice": results[0]["price"] + 500},
     )
     assert track_response.status_code == 200
     tracked_id = track_response.json()["id"]
@@ -58,3 +58,15 @@ def test_track_offer_history_and_refresh(client: TestClient, auth_headers: dict[
 
     refreshed_history = client.get(f"/tracked-products/{tracked_id}/price-history", headers=auth_headers)
     assert len(refreshed_history.json()) >= 2
+
+    notifications = client.get("/notifications", headers=auth_headers)
+    assert notifications.status_code == 200
+    assert notifications.json()[0]["type"] == "target_price_reached"
+
+    unread = client.get("/notifications/unread-count", headers=auth_headers)
+    assert unread.json()["count"] == 1
+
+    notification_id = notifications.json()[0]["id"]
+    mark_read = client.post(f"/notifications/{notification_id}/read", headers=auth_headers)
+    assert mark_read.status_code == 200
+    assert mark_read.json()["isRead"] is True

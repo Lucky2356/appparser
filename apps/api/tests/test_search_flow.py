@@ -27,6 +27,14 @@ def test_search_results_history_and_favorites(client: TestClient, auth_headers: 
     assert history_response.status_code == 200
     assert history_response.json()[0]["id"] == search_id
 
+    logs_response = client.get(f"/search/{search_id}/logs", headers=auth_headers)
+    assert logs_response.status_code == 200
+    assert logs_response.json()
+
+    csv_response = client.get(f"/search/{search_id}/results.csv", headers=auth_headers)
+    assert csv_response.status_code == 200
+    assert "marketplace,title,price" in csv_response.text
+
     offer_id = payload["results"][0]["id"]
     favorite_response = client.post("/favorites", headers=auth_headers, json={"offerId": offer_id})
     assert favorite_response.status_code == 200

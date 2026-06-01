@@ -32,13 +32,18 @@ Open:
 - Normalized offers
 - Top-20 result ranking with score explanations
 - Search history
+- CSV export for search results
 - Favorites
 - Tracked products screen
 - Price history for tracked products
+- In-app notifications for price drops and target price hits
+- Hourly Celery beat task for tracked product refresh
 - Parser cache and per-marketplace rate limiting
+- Optional Wildberries HTTP adapter in `PARSER_MODE=hybrid`
 - PWA manifest and service worker
 - Alembic migrations
 - Backend smoke tests
+- GitHub Actions CI workflow
 - Docker-ready local environment
 
 ## Development

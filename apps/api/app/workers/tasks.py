@@ -1,7 +1,7 @@
 from app.db.session import SessionLocal
 from app.models import TrackedProduct
 from app.searches.service import process_search
-from app.tracked_products.service import refresh_tracked_product
+from app.tracked_products.service import refresh_all_tracked_products, refresh_tracked_product
 from app.workers.celery_app import celery_app
 
 
@@ -17,5 +17,14 @@ def refresh_tracked_product_task(tracked_product_id: str) -> None:
         item = db.get(TrackedProduct, tracked_product_id)
         if item:
             refresh_tracked_product(db, item)
+    finally:
+        db.close()
+
+
+@celery_app.task(name="app.refresh_all_tracked_products")
+def refresh_all_tracked_products_task() -> int:
+    db = SessionLocal()
+    try:
+        return refresh_all_tracked_products(db)
     finally:
         db.close()

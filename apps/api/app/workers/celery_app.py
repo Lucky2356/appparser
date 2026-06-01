@@ -16,4 +16,10 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    beat_schedule={
+        "refresh-tracked-products-every-hour": {
+            "task": "app.refresh_all_tracked_products",
+            "schedule": 60 * 60,
+        },
+    },
 )

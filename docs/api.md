@@ -26,6 +26,8 @@ Auth endpoints return:
 - `POST /search`
 - `GET /search/{searchId}`
 - `GET /search/{searchId}/results`
+- `GET /search/{searchId}/results.csv`
+- `GET /search/{searchId}/logs`
 - `GET /search/history`
 
 Create search:
@@ -49,6 +51,13 @@ Create search:
 - `POST /favorites`
 - `GET /favorites`
 - `DELETE /favorites/{favoriteOrOfferId}`
+
+## Notifications
+
+- `GET /notifications`
+- `GET /notifications/unread-count`
+- `POST /notifications/{notificationId}/read`
+- `DELETE /notifications/{notificationId}`
 
 ## Tracked products
 

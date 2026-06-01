@@ -1,6 +1,7 @@
 import {
   Clock3,
   Heart,
+  Bell,
   LogOut,
   Moon,
   Search,
@@ -12,24 +13,43 @@ import {
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
+import { api } from "../api/client";
 import { useAuth } from "../state/AuthContext";
 
 const navItems = [
   { to: "/search", label: "Поиск", icon: Search },
   { to: "/history", label: "История", icon: Clock3 },
+  { to: "/notifications", label: "Уведомления", icon: Bell },
   { to: "/favorites", label: "Избранное", icon: Heart },
   { to: "/tracked", label: "Отслеживание", icon: Target },
   { to: "/settings", label: "Настройки", icon: Settings }
 ];
 
 export function ProtectedLayout() {
-  const { user, logout } = useAuth();
+  const { token, user, logout } = useAuth();
   const [isDark, setIsDark] = useState(() => localStorage.getItem("appsparcer.theme") === "dark");
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark);
     localStorage.setItem("appsparcer.theme", isDark ? "dark" : "light");
   }, [isDark]);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    api
+      .unreadNotifications(token)
+      .then((payload) => {
+        if (!cancelled) setUnreadCount(payload.count);
+      })
+      .catch(() => {
+        if (!cancelled) setUnreadCount(0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
@@ -60,6 +80,9 @@ export function ProtectedLayout() {
             >
               <item.icon size={18} />
               {item.label}
+              {item.to === "/notifications" && unreadCount > 0 ? (
+                <span className="ml-auto rounded-md bg-rose-600 px-1.5 py-0.5 text-xs text-white">{unreadCount}</span>
+              ) : null}
             </NavLink>
           ))}
         </nav>
@@ -94,20 +117,23 @@ export function ProtectedLayout() {
             <LogOut size={18} />
           </button>
         </div>
-        <nav className="mt-3 grid grid-cols-5 gap-1">
+        <nav className="mt-3 grid grid-cols-6 gap-1">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
                 [
-                  "grid h-10 place-items-center rounded-md",
+                  "relative grid h-10 place-items-center rounded-md",
                   isActive ? "bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-200" : "text-slate-500"
                 ].join(" ")
               }
               title={item.label}
             >
               <item.icon size={18} />
+              {item.to === "/notifications" && unreadCount > 0 ? (
+                <span className="absolute mt-[-18px] ml-5 h-2 w-2 rounded-full bg-rose-600" />
+              ) : null}
             </NavLink>
           ))}
         </nav>

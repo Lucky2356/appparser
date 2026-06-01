@@ -61,3 +61,11 @@ class SearchResults(CamelModel):
     search_id: str
     status: str
     results: list[OfferRead]
+
+
+class ParserLogRead(CamelModel):
+    id: str
+    marketplace: str
+    level: str
+    message: str
+    created_at: datetime

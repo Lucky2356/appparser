@@ -74,6 +74,14 @@ export type SearchResults = {
   results: Offer[];
 };
 
+export type ParserLog = {
+  id: string;
+  marketplace: string;
+  level: string;
+  message: string;
+  createdAt: string;
+};
+
 export type Favorite = {
   id: string;
   offerId?: string | null;
@@ -103,4 +111,14 @@ export type PriceHistoryPoint = {
   trackedProductId: string;
   price: number;
   collectedAt: string;
+};
+
+export type Notification = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  entityId?: string | null;
+  isRead: boolean;
+  createdAt: string;
 };

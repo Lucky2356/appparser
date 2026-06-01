@@ -2,6 +2,8 @@ import type {
   AuthResponse,
   Favorite,
   Marketplace,
+  Notification,
+  ParserLog,
   PriceHistoryPoint,
   SearchCreate,
   SearchCreated,
@@ -84,6 +86,10 @@ export const api = {
   getSearchResults: (searchId: string, token: string) =>
     request<SearchResults>(`/search/${searchId}/results`, { token }),
 
+  getSearchLogs: (searchId: string, token: string) => request<ParserLog[]>(`/search/${searchId}/logs`, { token }),
+
+  searchResultsCsvUrl: (searchId: string) => `${API_URL}/search/${searchId}/results.csv`,
+
   searchHistory: (token: string) => request<SearchItem[]>("/search/history", { token }),
 
   favorites: (token: string) => request<Favorite[]>("/favorites", { token }),
@@ -131,6 +137,22 @@ export const api = {
 
   deleteTrackedProduct: (id: string, token: string) =>
     request<void>(`/tracked-products/${id}`, {
+      method: "DELETE",
+      token
+    }),
+
+  notifications: (token: string) => request<Notification[]>("/notifications", { token }),
+
+  unreadNotifications: (token: string) => request<{ count: number }>("/notifications/unread-count", { token }),
+
+  markNotificationRead: (id: string, token: string) =>
+    request<Notification>(`/notifications/${id}/read`, {
+      method: "POST",
+      token
+    }),
+
+  deleteNotification: (id: string, token: string) =>
+    request<void>(`/notifications/${id}`, {
       method: "DELETE",
       token
     })

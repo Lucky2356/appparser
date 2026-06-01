@@ -26,6 +26,7 @@ class User(Base):
     searches: Mapped[list["Search"]] = relationship(back_populates="user")
     favorites: Mapped[list["Favorite"]] = relationship(back_populates="user")
     tracked_products: Mapped[list["TrackedProduct"]] = relationship(back_populates="user")
+    notifications: Mapped[list["Notification"]] = relationship(back_populates="user")
 
 
 class Search(Base):
@@ -105,6 +106,8 @@ class TrackedProduct(Base):
     product_url: Mapped[str] = mapped_column(Text, nullable=False)
     target_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     last_price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_notified_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     user: Mapped[User] = relationship(back_populates="tracked_products")
@@ -137,3 +140,18 @@ class ParserLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     search: Mapped[Search] = relationship(back_populates="parser_logs")
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uuid_str)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    type: Mapped[str] = mapped_column(String(60), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    user: Mapped[User] = relationship(back_populates="notifications")

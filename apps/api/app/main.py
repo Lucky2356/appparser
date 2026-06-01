@@ -10,6 +10,7 @@ from app.db.base import Base
 from app.db.session import engine
 from app.favorites.routes import router as favorites_router
 from app.marketplaces.routes import router as marketplaces_router
+from app.notifications.routes import router as notifications_router
 from app.searches.routes import router as searches_router
 from app.tracked_products.routes import router as tracked_products_router
 
@@ -38,6 +39,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(marketplaces_router)
+    app.include_router(notifications_router)
     app.include_router(searches_router)
     app.include_router(favorites_router)
     app.include_router(tracked_products_router)
