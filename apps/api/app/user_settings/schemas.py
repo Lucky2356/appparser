@@ -12,3 +12,8 @@ class UserSettingsRead(CamelModel):
 class UserSettingsUpdate(CamelModel):
     telegram_chat_id: str | None = Field(default=None, max_length=80)
     telegram_notifications_enabled: bool = False
+
+
+class TestTelegramResponse(CamelModel):
+    sent: bool
+    message: str

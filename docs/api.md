@@ -63,6 +63,7 @@ Create search:
 
 - `GET /settings`
 - `PUT /settings`
+- `POST /settings/test-telegram`
 
 ## Tracked products
 

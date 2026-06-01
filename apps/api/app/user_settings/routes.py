@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.dependencies import get_current_user
 from app.models import User
-from app.user_settings.schemas import UserSettingsRead, UserSettingsUpdate
+from app.notifications.delivery import deliver_telegram_notification
+from app.user_settings.schemas import TestTelegramResponse, UserSettingsRead, UserSettingsUpdate
 
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -27,3 +28,14 @@ def update_settings(
     db.commit()
     db.refresh(user)
     return user
+
+
+@router.post("/test-telegram", response_model=TestTelegramResponse)
+def test_telegram(user: User = Depends(get_current_user)) -> TestTelegramResponse:
+    sent = deliver_telegram_notification(user, "Appsparcer: тестовое уведомление")
+    if sent:
+        return TestTelegramResponse(sent=True, message="Тестовое уведомление отправлено")
+    return TestTelegramResponse(
+        sent=False,
+        message="Не удалось отправить уведомление. Проверьте bot token, chat ID и включение Telegram-уведомлений.",
+    )

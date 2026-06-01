@@ -171,5 +171,11 @@ export const api = {
       method: "PUT",
       token,
       body: JSON.stringify(payload)
+    }),
+
+  testTelegram: (token: string) =>
+    request<{ sent: boolean; message: string }>("/settings/test-telegram", {
+      method: "POST",
+      token
     })
 };

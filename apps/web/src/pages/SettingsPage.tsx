@@ -53,6 +53,22 @@ export function SettingsPage() {
     }
   }
 
+  async function handleTestTelegram() {
+    if (!token) return;
+    setMessage("");
+    setError("");
+    try {
+      const response = await api.testTelegram(token);
+      if (response.sent) {
+        setMessage(response.message);
+      } else {
+        setError(response.message);
+      }
+    } catch {
+      setError("Не удалось выполнить тестовую отправку");
+    }
+  }
+
   return (
     <>
       <PageHeader title="Настройки" />
@@ -108,6 +124,10 @@ export function SettingsPage() {
             <button className="primary-button md:w-44" type="submit">
               <Save size={18} />
               Сохранить
+            </button>
+            <button className="secondary-button md:w-44" type="button" onClick={handleTestTelegram}>
+              <Send size={18} />
+              Тест
             </button>
           </form>
         )}
