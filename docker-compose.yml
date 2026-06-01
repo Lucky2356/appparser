@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-appsparcer}
+      POSTGRES_USER: ${POSTGRES_USER:-appsparcer}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-appsparcer}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-appsparcer} -d ${POSTGRES_DB:-appsparcer}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://appsparcer:appsparcer@postgres:5432/appsparcer}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-before-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      AUTO_CREATE_TABLES: ${AUTO_CREATE_TABLES:-false}
+      PARSER_CACHE_TTL_SECONDS: ${PARSER_CACHE_TTL_SECONDS:-300}
+      PARSER_MIN_INTERVAL_SECONDS: ${PARSER_MIN_INTERVAL_SECONDS:-0.2}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: sh -c "alembic -c apps/api/alembic.ini upgrade head && celery -A app.workers.celery_app.celery_app worker --loglevel=info --pool=solo"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://appsparcer:appsparcer@postgres:5432/appsparcer}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-before-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      AUTO_CREATE_TABLES: ${AUTO_CREATE_TABLES:-false}
+      PARSER_CACHE_TTL_SECONDS: ${PARSER_CACHE_TTL_SECONDS:-300}
+      PARSER_MIN_INTERVAL_SECONDS: ${PARSER_MIN_INTERVAL_SECONDS:-0.2}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+    depends_on:
+      - api
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:

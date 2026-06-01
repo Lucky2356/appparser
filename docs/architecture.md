@@ -1,0 +1,51 @@
+# Architecture
+
+## Runtime flow
+
+```txt
+React Web -> FastAPI -> PostgreSQL
+                 |
+                 v
+              Redis Queue -> Celery Worker -> Parser Adapters -> Scoring -> PostgreSQL
+```
+
+The frontend never talks to marketplaces directly. It creates a search task through the API, polls status, and renders stored normalized offers.
+
+## Boundaries
+
+- `apps/web`: user interface, auth state, search workflow, history, favorites, tracked products.
+- `apps/api`: REST API, persistence, authorization, task scheduling.
+- `services/parser`: marketplace adapter contract, mock Ozon/Wildberries adapters, normalization, score calculation.
+
+## Parser strategy
+
+The MVP intentionally uses mock adapters. The adapter interface already models the real boundary:
+
+```py
+class MarketplaceAdapter:
+    marketplace_name: str
+
+    def search_products(self, params: SearchParams) -> list[MarketplaceOffer]:
+        ...
+```
+
+Real adapters should add legal source checks, robots.txt awareness where applicable, structured logging, and defensive parsing. A broken adapter must return a log entry or raise an adapter-scoped error without failing the whole search.
+
+The current parser layer already includes in-process TTL caching and per-marketplace rate limiting. In production, this can be swapped to Redis-backed cache/limits without changing adapter contracts.
+
+## Scoring
+
+Offers are ranked by weighted factors:
+
+- price compared to average price
+- product rating
+- review count
+- discount percent
+- seller rating
+- availability
+
+Weights live in `services/parser/market_parser/scoring.py` and are intentionally easy to tune.
+
+## Database lifecycle
+
+Alembic migrations live in `apps/api/migrations`. Docker runs `alembic upgrade head` before starting API and worker containers. `AUTO_CREATE_TABLES=true` remains available for quick local SQLite development only.

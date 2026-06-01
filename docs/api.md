@@ -1,0 +1,64 @@
+# API
+
+Base URL in Docker through the web container: `/api`.
+
+## Auth
+
+- `POST /auth/register`
+- `POST /auth/login`
+- `GET /auth/me`
+
+Auth endpoints return:
+
+```json
+{
+  "accessToken": "jwt",
+  "tokenType": "bearer",
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com"
+  }
+}
+```
+
+## Search
+
+- `POST /search`
+- `GET /search/{searchId}`
+- `GET /search/{searchId}/results`
+- `GET /search/history`
+
+Create search:
+
+```json
+{
+  "query": "телефон samsung",
+  "marketplaces": ["ozon", "wildberries"],
+  "filters": {
+    "minRating": 4.7,
+    "minReviews": 100,
+    "minPrice": null,
+    "maxPrice": 50000
+  },
+  "sort": "best_value"
+}
+```
+
+## Favorites
+
+- `POST /favorites`
+- `GET /favorites`
+- `DELETE /favorites/{favoriteOrOfferId}`
+
+## Tracked products
+
+- `POST /tracked-products`
+- `POST /tracked-products/from-offer`
+- `GET /tracked-products`
+- `GET /tracked-products/{trackedProductId}/price-history`
+- `POST /tracked-products/{trackedProductId}/refresh`
+- `DELETE /tracked-products/{trackedProductId}`
+
+## Marketplaces
+
+- `GET /marketplaces`
