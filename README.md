@@ -1,6 +1,6 @@
 # Appsparcer
 
-Web app for finding value offers across marketplaces. The production configuration uses real Ozon and Wildberries source adapters by default. Deterministic mock data is still available only as an explicit development/test mode.
+Web app for finding value offers across marketplaces. The default launch mode uses real Ozon and Wildberries source adapters. Mock and hybrid modes are available only when explicitly selected for tests or demos.
 
 ## Stack
 
@@ -12,7 +12,7 @@ Web app for finding value offers across marketplaces. The production configurati
 
 ## Quick Local Run
 
-This starts the API and web app locally without Docker. It uses SQLite in `.runtime/` and mock parser data by default so the interface can be checked immediately.
+This starts the API and web app locally without Docker. It uses SQLite in `.runtime/` and real parser data by default.
 
 ```powershell
 .\start.cmd
@@ -23,10 +23,10 @@ Open:
 - Web: http://localhost:5173
 - API docs: http://localhost:8000/docs
 
-Run local checks against live marketplace adapters:
+Run a local demo with deterministic mock data:
 
 ```powershell
-.\start.cmd -ParserMode real
+.\start.cmd -ParserMode mock
 ```
 
 ## Run with Docker
@@ -44,6 +44,12 @@ Run Docker in background:
 
 ```powershell
 .\start-docker.cmd -Detached
+```
+
+Run Docker with deterministic mock data:
+
+```powershell
+.\start-docker.cmd -ParserMode mock
 ```
 
 ## MVP features
@@ -66,6 +72,7 @@ Run Docker in background:
 - Hourly Celery beat task for tracked product refresh
 - Parser cache and per-marketplace rate limiting
 - Real Ozon and Wildberries adapters in `PARSER_MODE=real`
+- Browser-backed live fallback for Wildberries rate-limit cases
 - Optional `hybrid` mode for development demos with mock fallback
 - Runtime parser logs showing whether data came from `mock`, `live`, `fallback`, or `failed` sources
 - PWA manifest and service worker
@@ -79,10 +86,10 @@ Run Docker in background:
 Parser modes:
 
 - `PARSER_MODE=real`: live Ozon/Wildberries collection only. If live sources block or return no usable product data, the search fails with source logs instead of showing mock products.
-- `PARSER_MODE=hybrid`: tries live Ozon/Wildberries collection first, then falls back to mock data if a source rate-limits, blocks, or returns an unexpected page.
+- `PARSER_MODE=hybrid`: tries live Ozon/Wildberries collection first, then falls back to deterministic demo data if a source rate-limits, blocks, or returns an unexpected page.
 - `PARSER_MODE=mock`: deterministic local data for tests and development.
 
-Live collection uses `PARSER_HTTP_TIMEOUT_SECONDS`, `PARSER_HTTP_PROXY`, `PARSER_USER_AGENT`, `OZON_COOKIES`, `WILDBERRIES_COOKIES`, and `WILDBERRIES_DEST` from the environment. Marketplace pages and private endpoints can rate-limit or block automated requests, so the app keeps source status visible in result logs and never treats fallback data as real results.
+Live collection uses `PARSER_HTTP_TIMEOUT_SECONDS`, `PARSER_HTTP_PROXY`, `PARSER_USER_AGENT`, `PARSER_BROWSER_FALLBACK`, `OZON_COOKIES`, `WILDBERRIES_COOKIES`, and `WILDBERRIES_DEST` from the environment. Wildberries can fall back to a Chromium-backed request when regular HTTP is rate-limited. Ozon can still return an anti-bot 403 without valid cookies/proxy access, so the app keeps source status visible in result logs and never treats mock data as real results.
 
 Backend:
 

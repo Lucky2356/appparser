@@ -3,7 +3,7 @@ import pytest
 
 from app.searches.service import _should_fail_real_search
 from market_parser.adapters.ozon import OzonAdapter, OzonHttpAdapter
-from market_parser.adapters.wildberries import WildberriesAdapter
+from market_parser.adapters.wildberries import WildberriesAdapter, _extract_products
 from market_parser.cache import OFFER_CACHE
 from market_parser.errors import AdapterUnavailableError
 from market_parser.models import MarketplaceOffer, ParserLogEntry, SearchParams
@@ -83,6 +83,12 @@ def test_wildberries_hybrid_falls_back_when_live_source_is_empty(monkeypatch: py
 
     assert offers
     assert adapter.runtime.source == "fallback"
+
+
+def test_wildberries_extracts_root_products_payload():
+    product = {"id": 348734774, "name": "iPhone 16 256GB"}
+
+    assert _extract_products({"products": [product]}) == [product]
 
 
 def test_ozon_http_adapter_extracts_jsonld_products():

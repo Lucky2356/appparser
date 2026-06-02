@@ -1,6 +1,6 @@
 param(
     [ValidateSet("mock", "hybrid", "real")]
-    [string]$ParserMode = "mock",
+    [string]$ParserMode = "real",
     [switch]$SkipInstall
 )
 
@@ -60,9 +60,16 @@ if (-not (Test-Path -LiteralPath $pythonExe)) {
 $npmCommand = Get-NpmCommand
 
 if (-not $SkipInstall) {
-    if (-not (Test-Path -LiteralPath (Join-Path $apiDir ".venv\Lib\site-packages\fastapi"))) {
+    $backendDependenciesReady = (Test-Path -LiteralPath (Join-Path $apiDir ".venv\Lib\site-packages\fastapi")) -and
+        (Test-Path -LiteralPath (Join-Path $apiDir ".venv\Lib\site-packages\playwright"))
+    if (-not $backendDependenciesReady) {
         Write-Host "Installing backend dependencies..."
         & $pythonExe -m pip install -r (Join-Path $apiDir "requirements.txt")
+    }
+
+    if ($ParserMode -eq "real") {
+        Write-Host "Ensuring backend browser runtime is installed..."
+        & $pythonExe -m playwright install chromium
     }
 
     if (-not (Test-Path -LiteralPath (Join-Path $webDir "node_modules"))) {
@@ -97,7 +104,13 @@ $apiEnv = @{
     "CORS_ORIGINS" = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
     "DATABASE_URL" = "sqlite:///$($databasePath.Replace('\', '/'))"
     "JWT_SECRET" = "local-dev-secret"
+    "PARSER_BROWSER_429_DELAY_SECONDS" = "10"
+    "PARSER_BROWSER_429_RETRIES" = "1"
+    "PARSER_BROWSER_FALLBACK" = "true"
+    "PARSER_MIN_INTERVAL_SECONDS" = "2.5"
     "PARSER_MODE" = $ParserMode
+    "PARSER_WB_429_DELAY_SECONDS" = "10"
+    "PARSER_WB_429_RETRIES" = "1"
     "PYTHONPATH" = "$apiDir;$parserDir"
     "REDIS_URL" = "redis://127.0.0.1:6390/0"
 }

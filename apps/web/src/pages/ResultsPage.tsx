@@ -9,6 +9,16 @@ import { EmptyState, ErrorState, LoadingState } from "../components/States";
 import { useAuth } from "../state/AuthContext";
 import type { Offer, ParserLog, SearchItem } from "../types";
 
+function logToneClass(level: ParserLog["level"]) {
+  if (level === "error") {
+    return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-200";
+  }
+  if (level === "warning") {
+    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200";
+  }
+  return "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300";
+}
+
 export function ResultsPage() {
   const { searchId } = useParams();
   const { token } = useAuth();
@@ -70,6 +80,9 @@ export function ResultsPage() {
     }
   }
 
+  const hasErrorLogs = logs.some((log) => log.level === "error");
+  const shouldOpenLogs = Boolean(search?.status === "failed" || hasErrorLogs || (search?.status === "completed" && results.length === 0));
+
   return (
     <>
       <PageHeader
@@ -122,20 +135,26 @@ export function ResultsPage() {
       {isLoading ? <LoadingState label="Получаем результаты" /> : null}
       {error ? <ErrorState message={error} /> : null}
       {logs.length ? (
-        <div className="mb-4 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900">
-          <div className="mb-2 font-semibold text-slate-700 dark:text-slate-200">Логи источников</div>
-          <div className="flex flex-wrap gap-2">
+        <details
+          className="mb-4 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900"
+          open={shouldOpenLogs}
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-semibold text-slate-700 dark:text-slate-200 [&::-webkit-details-marker]:hidden">
+            <span>Диагностика источников</span>
+            <span className="rounded-md bg-slate-100 px-2 py-1 font-medium text-slate-500 dark:bg-slate-800">{logs.length}</span>
+          </summary>
+          <div className="mt-3 flex flex-wrap gap-2">
             {logs.map((log) => (
               <span
                 key={log.id}
-                className="rounded-md border border-slate-200 px-2 py-1 dark:border-slate-700"
+                className={`rounded-md border px-2 py-1 ${logToneClass(log.level)}`}
                 title={new Date(log.createdAt).toLocaleString("ru-RU")}
               >
                 {log.marketplace}: {log.message}
               </span>
             ))}
           </div>
-        </div>
+        </details>
       ) : null}
       {!isLoading && !error && search?.status === "processing" ? <LoadingState label="Поиск выполняется" /> : null}
       {!isLoading && !error && search?.status === "completed" && results.length === 0 ? (

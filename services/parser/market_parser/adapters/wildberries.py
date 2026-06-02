@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import os
+import time
 from datetime import datetime, timezone
 from urllib.parse import quote_plus
 
@@ -28,6 +30,7 @@ class WildberriesHttpAdapter(MarketplaceAdapter):
     def search_products(self, params: SearchParams) -> list[MarketplaceOffer]:
         errors: list[str] = []
         timeout = float(os.getenv("PARSER_HTTP_TIMEOUT_SECONDS", "8"))
+        rate_limit_retries = int(os.getenv("PARSER_WB_429_RETRIES", "1"))
 
         with httpx.Client(
             headers=_wildberries_headers(),
@@ -37,12 +40,20 @@ class WildberriesHttpAdapter(MarketplaceAdapter):
         ) as client:
             for version, url in _wildberries_search_urls(params.query):
                 try:
-                    response = client.get(url)
+                    response = _get_with_rate_limit_retries(client, url, rate_limit_retries)
                     if response.status_code == 429:
-                        errors.append(f"{version}: rate limited")
-                        continue
-                    response.raise_for_status()
-                    payload = response.json()
+                        if _browser_fallback_enabled():
+                            try:
+                                payload = _fetch_payload_with_browser(url, timeout)
+                            except AdapterUnavailableError as exc:
+                                errors.append(f"{version}: rate limited after retry; browser {exc.message}")
+                                continue
+                        else:
+                            errors.append(f"{version}: rate limited after retry")
+                            continue
+                    else:
+                        response.raise_for_status()
+                        payload = response.json()
                 except httpx.HTTPStatusError as exc:
                     errors.append(f"{version}: HTTP {exc.response.status_code}")
                     continue
@@ -50,7 +61,7 @@ class WildberriesHttpAdapter(MarketplaceAdapter):
                     errors.append(f"{version}: {exc.__class__.__name__}")
                     continue
 
-                products = payload.get("data", {}).get("products", [])
+                products = _extract_products(payload)
                 if not isinstance(products, list):
                     errors.append(f"{version}: unexpected payload")
                     continue
@@ -150,7 +161,7 @@ def _wildberries_headers() -> dict[str, str]:
         "User-Agent": os.getenv("PARSER_USER_AGENT")
         or (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+            "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
         ),
     }
     cookies = os.getenv("WILDBERRIES_COOKIES", "").strip()
@@ -167,10 +178,6 @@ def _wildberries_search_urls(query: str) -> list[tuple[str, str]]:
         "&resultset=catalog&sort=popular&spp=30&suppressSpellcheck=false"
     )
     return [
-        ("v19", f"https://search.wb.ru/exactmatch/ru/common/v19/search?{common_params}"),
-        ("v18", f"https://search.wb.ru/exactmatch/ru/common/v18/search?{common_params}"),
-        ("v14", f"https://search.wb.ru/exactmatch/ru/common/v14/search?{common_params}"),
-        ("v7", f"https://search.wb.ru/exactmatch/ru/common/v7/search?{common_params}"),
         ("v5", f"https://search.wb.ru/exactmatch/ru/common/v5/search?{common_params}"),
         ("v4", f"https://search.wb.ru/exactmatch/ru/common/v4/search?{common_params}"),
         ("v13", f"https://search.wb.ru/exactmatch/ru/common/v13/search?{common_params}"),
@@ -179,6 +186,104 @@ def _wildberries_search_urls(query: str) -> list[tuple[str, str]]:
 
 def _http_proxy() -> str | None:
     return os.getenv("PARSER_HTTP_PROXY") or None
+
+
+def _browser_fallback_enabled() -> bool:
+    return os.getenv("PARSER_BROWSER_FALLBACK", "true").lower() not in {"0", "false", "no"}
+
+
+def _extract_products(payload: object) -> list | None:
+    if not isinstance(payload, dict):
+        return None
+
+    products = payload.get("products")
+    if isinstance(products, list):
+        return products
+
+    data = payload.get("data")
+    if isinstance(data, dict):
+        products = data.get("products")
+        if isinstance(products, list):
+            return products
+    return None
+
+
+def _get_with_rate_limit_retries(client: httpx.Client, url: str, retries: int) -> httpx.Response:
+    response = client.get(url)
+    for _ in range(max(0, retries)):
+        if response.status_code != 429:
+            break
+        _sleep_after_rate_limit(response)
+        response = client.get(url)
+    return response
+
+
+def _fetch_payload_with_browser(url: str, timeout: float) -> dict:
+    try:
+        from playwright.sync_api import Error as PlaywrightError
+        from playwright.sync_api import sync_playwright
+    except ImportError as exc:
+        raise AdapterUnavailableError("wildberries", "Playwright is not installed") from exc
+
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(
+                    extra_http_headers=_wildberries_browser_headers(),
+                    locale="ru-RU",
+                    user_agent=_wildberries_headers()["User-Agent"],
+                )
+                status_code = 0
+                body_text = ""
+                for attempt in range(_browser_rate_limit_retries() + 1):
+                    response = page.goto(url, wait_until="domcontentloaded", timeout=max(5000, timeout * 1000))
+                    status_code = response.status if response else 0
+                    body_text = page.locator("body").inner_text(timeout=5000)
+                    if status_code != 429 or attempt >= _browser_rate_limit_retries():
+                        break
+                    time.sleep(_browser_rate_limit_delay())
+                if status_code in {403, 429}:
+                    raise AdapterUnavailableError("wildberries", f"browser endpoint HTTP {status_code}")
+                if status_code >= 400:
+                    raise AdapterUnavailableError("wildberries", f"browser endpoint HTTP {status_code}")
+                payload = json.loads(body_text)
+                if not isinstance(payload, dict):
+                    raise AdapterUnavailableError("wildberries", "browser endpoint returned unexpected payload")
+                return payload
+            finally:
+                browser.close()
+    except json.JSONDecodeError as exc:
+        raise AdapterUnavailableError("wildberries", "browser endpoint returned non-JSON payload") from exc
+    except PlaywrightError as exc:
+        raise AdapterUnavailableError("wildberries", f"browser endpoint {exc.__class__.__name__}") from exc
+
+
+def _wildberries_browser_headers() -> dict[str, str]:
+    headers = {
+        key: value
+        for key, value in _wildberries_headers().items()
+        if key.lower() not in {"user-agent"}
+    }
+    return headers
+
+
+def _browser_rate_limit_retries() -> int:
+    return int(os.getenv("PARSER_BROWSER_429_RETRIES", "1"))
+
+
+def _browser_rate_limit_delay() -> float:
+    return float(os.getenv("PARSER_BROWSER_429_DELAY_SECONDS", "10"))
+
+
+def _sleep_after_rate_limit(response: httpx.Response) -> None:
+    retry_after = (
+        _as_float(response.headers.get("X-Ratelimit-Retry"))
+        or _as_float(response.headers.get("X-Ratelimit-Reset"))
+        or _as_float(response.headers.get("Retry-After"))
+    )
+    delay = retry_after if retry_after and retry_after > 0 else float(os.getenv("PARSER_WB_429_DELAY_SECONDS", "10"))
+    time.sleep(min(delay, 30.0))
 
 
 def _wildberries_image_url(product_id: object) -> str | None:

@@ -2,7 +2,8 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app:/app/services/parser
+    PYTHONPATH=/app:/app/services/parser \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 WORKDIR /app
 
@@ -12,6 +13,7 @@ RUN apt-get update \
 
 COPY apps/api/requirements.txt /app/apps/api/requirements.txt
 RUN pip install --no-cache-dir -r /app/apps/api/requirements.txt
+RUN python -m playwright install --with-deps chromium
 
 COPY apps/api/app /app/app
 COPY apps/api/alembic.ini /app/apps/api/alembic.ini
@@ -19,7 +21,7 @@ COPY apps/api/migrations /app/apps/api/migrations
 COPY services/parser /app/services/parser
 
 RUN useradd --create-home --shell /usr/sbin/nologin appuser \
-    && chown -R appuser:appuser /app
+    && chown -R appuser:appuser /app /ms-playwright
 
 USER appuser
 

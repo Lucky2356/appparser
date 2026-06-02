@@ -71,6 +71,21 @@ class OzonHttpAdapter(MarketplaceAdapter):
         except httpx.HTTPError as exc:
             errors.append(f"HTML endpoint {exc.__class__.__name__}")
 
+        if _browser_fallback_enabled():
+            try:
+                html = _fetch_search_page_with_browser(params.query)
+                soup = BeautifulSoup(html, "html.parser")
+                offers = _extract_jsonld_offers(soup, params)
+                if not offers:
+                    offers = _extract_dom_offers(soup, params)
+
+                filtered = _apply_filters(offers, params)
+                if filtered:
+                    return filtered[:40]
+                errors.append("browser endpoint returned no product cards")
+            except AdapterUnavailableError as exc:
+                errors.append(str(exc))
+
         raise AdapterUnavailableError(self.marketplace_name, f"Ozon endpoint unavailable: {'; '.join(errors[:4])}")
 
     def _fetch_composer_payload(self, query: str) -> dict[str, Any]:
@@ -148,7 +163,7 @@ def _ozon_headers() -> dict[str, str]:
         "User-Agent": os.getenv("PARSER_USER_AGENT")
         or (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+            "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
         ),
     }
     cookies = os.getenv("OZON_COOKIES", "").strip()
@@ -165,6 +180,10 @@ def _http_proxy() -> str | None:
     return os.getenv("PARSER_HTTP_PROXY") or None
 
 
+def _browser_fallback_enabled() -> bool:
+    return os.getenv("PARSER_BROWSER_FALLBACK", "true").lower() not in {"0", "false", "no"}
+
+
 def _get_with_one_redirect(client: httpx.Client, url: str) -> httpx.Response:
     response = client.get(url)
     if response.is_redirect and response.headers.get("location"):
@@ -175,6 +194,55 @@ def _get_with_one_redirect(client: httpx.Client, url: str) -> httpx.Response:
 def _is_antibot_page(html: str) -> bool:
     lowered = html.lower()
     return "antibot challenge" in lowered or "abt-challenge" in lowered or "captcha" in lowered
+
+
+def _fetch_search_page_with_browser(query: str) -> str:
+    try:
+        from playwright.sync_api import Error as PlaywrightError
+        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+        from playwright.sync_api import sync_playwright
+    except ImportError as exc:
+        raise AdapterUnavailableError("ozon", "browser endpoint requires Playwright") from exc
+
+    timeout_ms = int(float(os.getenv("PARSER_HTTP_TIMEOUT_SECONDS", "8")) * 1000)
+    proxy = _http_proxy()
+    launch_options: dict[str, Any] = {"headless": True}
+    if proxy:
+        launch_options["proxy"] = {"server": proxy}
+
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(**launch_options)
+            try:
+                page = browser.new_page(
+                    extra_http_headers=_ozon_browser_headers(),
+                    locale="ru-RU",
+                    user_agent=_ozon_headers()["User-Agent"],
+                )
+                response = page.goto(
+                    f"{OZON_BASE_URL}{_ozon_search_path(query)}",
+                    wait_until="domcontentloaded",
+                    timeout=max(5000, timeout_ms),
+                )
+                try:
+                    page.wait_for_load_state("networkidle", timeout=5000)
+                except PlaywrightTimeoutError:
+                    pass
+                status_code = response.status if response else 0
+                html = page.content()
+                if status_code in {403, 429} or _is_antibot_page(html):
+                    raise AdapterUnavailableError("ozon", f"browser endpoint HTTP {status_code}, anti-bot challenge")
+                if status_code >= 400:
+                    raise AdapterUnavailableError("ozon", f"browser endpoint HTTP {status_code}")
+                return html
+            finally:
+                browser.close()
+    except PlaywrightError as exc:
+        raise AdapterUnavailableError("ozon", f"browser endpoint {exc.__class__.__name__}") from exc
+
+
+def _ozon_browser_headers() -> dict[str, str]:
+    return {key: value for key, value in _ozon_headers().items() if key.lower() != "user-agent"}
 
 
 def _extract_jsonld_offers(soup: BeautifulSoup, params: SearchParams) -> list[MarketplaceOffer]:

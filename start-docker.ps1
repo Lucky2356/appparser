@@ -1,5 +1,7 @@
 param(
-    [switch]$Detached
+    [switch]$Detached,
+    [ValidateSet("mock", "hybrid", "real")]
+    [string]$ParserMode = "real"
 )
 
 $ErrorActionPreference = "Stop"
@@ -50,10 +52,36 @@ function Ensure-EnvValue($Name, $Value) {
     Write-Host "Added $Name=$Value to .env"
 }
 
+function Set-EnvValue($Name, $Value) {
+    $envPath = Join-Path $root ".env"
+    $content = Get-Content -LiteralPath $envPath -ErrorAction SilentlyContinue
+    $pattern = "^$([regex]::Escape($Name))="
+    if ($content -match $pattern) {
+        $updated = $content | ForEach-Object {
+            if ($_ -match $pattern) {
+                "$Name=$Value"
+            }
+            else {
+                $_
+            }
+        }
+        Set-Content -LiteralPath $envPath -Value $updated
+        return
+    }
+    Add-Content -LiteralPath $envPath -Value "$Name=$Value"
+}
+
 Ensure-EnvValue "POSTGRES_PORT" "55432"
 Ensure-EnvValue "REDIS_PORT" "56379"
 Ensure-EnvValue "API_PORT" "8001"
 Ensure-EnvValue "WEB_PORT" "3000"
+Set-EnvValue "PARSER_MIN_INTERVAL_SECONDS" "2.5"
+Set-EnvValue "PARSER_MODE" $ParserMode
+Set-EnvValue "PARSER_BROWSER_FALLBACK" "true"
+Set-EnvValue "PARSER_BROWSER_429_RETRIES" "1"
+Set-EnvValue "PARSER_BROWSER_429_DELAY_SECONDS" "10"
+Set-EnvValue "PARSER_WB_429_RETRIES" "1"
+Set-EnvValue "PARSER_WB_429_DELAY_SECONDS" "10"
 
 $envValues = @{}
 Get-Content -LiteralPath ".env" | ForEach-Object {
@@ -69,6 +97,10 @@ Write-Host ""
 Write-Host "Starting Appsparcer with Docker..."
 Write-Host "Web:      http://localhost:$webPort"
 Write-Host "API docs: http://localhost:$apiPort/docs"
+Write-Host "Parser:   $ParserMode"
+if ($ParserMode -eq "real") {
+    Write-Host "Real mode requires working marketplace access cookies/proxy; otherwise Ozon/WB can block requests."
+}
 Write-Host ""
 
 $args = @("compose", "up", "--build", "--remove-orphans")

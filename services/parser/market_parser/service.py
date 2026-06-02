@@ -81,4 +81,11 @@ def _runtime_log_level(source: str) -> str:
 
 
 def _runtime_message(runtime: AdapterRuntime) -> str:
-    return f"Adapter source: {runtime.source}" + (f" ({runtime.detail})" if runtime.detail else "")
+    messages = {
+        "failed": "Live source failed",
+        "fallback": "Live source unavailable, using fallback data",
+        "live": "Adapter source: live",
+        "mock": "Adapter source: mock",
+    }
+    message = messages.get(runtime.source, f"Adapter source: {runtime.source}")
+    return message + (f" ({runtime.detail})" if runtime.detail else "")
