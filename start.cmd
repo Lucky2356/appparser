@@ -1,4 +1,5 @@
 @echo off
 setlocal
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start.ps1" %*
-endlocal
+set EXIT_CODE=%ERRORLEVEL%
+endlocal & exit /b %EXIT_CODE%
