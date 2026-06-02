@@ -20,7 +20,7 @@ from market_parser.models import MarketplaceOffer, SearchParams
 
 OZON_BASE_URL = "https://www.ozon.ru"
 PRICE_RE = re.compile(r"(?<!\d)(\d[\d\s]{1,12})(?:\s*)(?:₽|руб)", re.IGNORECASE)
-REVIEWS_RE = re.compile(r"(\d[\d\s]*)\s+(?:отзыв|отзыва|отзывов)", re.IGNORECASE)
+REVIEWS_RE = re.compile(r"(?<![\d,])(\d[\d\s]*)\s+(?:отзыв|отзыва|отзывов)", re.IGNORECASE)
 RATING_RE = re.compile(r"(?<!\d)([1-5][,.]\d)(?!\d)")
 
 
@@ -38,36 +38,72 @@ class OzonHttpAdapter(MarketplaceAdapter):
     marketplace_name = "ozon"
 
     def search_products(self, params: SearchParams) -> list[MarketplaceOffer]:
-        response = self._fetch_search_page(params.query)
-        html = response.text
+        errors: list[str] = []
 
-        if response.status_code in {403, 429} or _is_antibot_page(html):
+        try:
+            payload = self._fetch_composer_payload(params.query)
+            offers = _extract_composer_offers(payload, params)
+            filtered = _apply_filters(offers, params)
+            if filtered:
+                return filtered[:40]
+            errors.append("composer endpoint returned no product cards")
+        except AdapterUnavailableError as exc:
+            errors.append(str(exc))
+
+        try:
+            response = self._fetch_search_page(params.query)
+            html = response.text
+
+            if response.status_code in {403, 429} or _is_antibot_page(html):
+                errors.append(f"HTML endpoint HTTP {response.status_code}, anti-bot challenge")
+            elif response.status_code >= 400:
+                errors.append(f"HTML endpoint HTTP {response.status_code}")
+            else:
+                soup = BeautifulSoup(html, "html.parser")
+                offers = _extract_jsonld_offers(soup, params)
+                if not offers:
+                    offers = _extract_dom_offers(soup, params)
+
+                filtered = _apply_filters(offers, params)
+                if filtered:
+                    return filtered[:40]
+                errors.append("HTML endpoint returned no product cards")
+        except httpx.HTTPError as exc:
+            errors.append(f"HTML endpoint {exc.__class__.__name__}")
+
+        raise AdapterUnavailableError(self.marketplace_name, f"Ozon endpoint unavailable: {'; '.join(errors[:4])}")
+
+    def _fetch_composer_payload(self, query: str) -> dict[str, Any]:
+        timeout = float(os.getenv("PARSER_HTTP_TIMEOUT_SECONDS", "8"))
+        path = _ozon_search_path(query)
+        url = f"{OZON_BASE_URL}/api/composer-api.bx/page/json/v2?url={path}"
+
+        with httpx.Client(headers=_ozon_headers(), follow_redirects=False, timeout=timeout, proxy=_http_proxy()) as client:
+            response = _get_with_one_redirect(client, url)
+
+        if response.status_code in {403, 429} or _is_antibot_page(response.text):
             raise AdapterUnavailableError(
                 self.marketplace_name,
-                f"Ozon endpoint unavailable: HTTP {response.status_code}, anti-bot challenge",
+                f"composer endpoint HTTP {response.status_code}, anti-bot challenge",
             )
         if response.status_code >= 400:
-            raise AdapterUnavailableError(self.marketplace_name, f"Ozon endpoint unavailable: HTTP {response.status_code}")
+            raise AdapterUnavailableError(self.marketplace_name, f"composer endpoint HTTP {response.status_code}")
 
-        soup = BeautifulSoup(html, "html.parser")
-        offers = _extract_jsonld_offers(soup, params)
-        if not offers:
-            offers = _extract_dom_offers(soup, params)
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise AdapterUnavailableError(self.marketplace_name, "composer endpoint returned non-JSON payload") from exc
 
-        filtered = _apply_filters(offers, params)
-        if not filtered:
-            raise AdapterUnavailableError(self.marketplace_name, "Ozon endpoint returned no product cards")
-        return filtered[:40]
+        if not isinstance(payload, dict):
+            raise AdapterUnavailableError(self.marketplace_name, "composer endpoint returned unexpected payload")
+        return payload
 
     def _fetch_search_page(self, query: str) -> httpx.Response:
         timeout = float(os.getenv("PARSER_HTTP_TIMEOUT_SECONDS", "8"))
-        url = f"{OZON_BASE_URL}/search/?text={quote_plus(query.strip())}&from_global=true"
+        url = f"{OZON_BASE_URL}{_ozon_search_path(query)}"
 
-        with httpx.Client(headers=_ozon_headers(), follow_redirects=False, timeout=timeout) as client:
-            response = client.get(url)
-            if response.is_redirect and response.headers.get("location"):
-                response = client.get(urljoin(str(response.url), response.headers["location"]))
-            return response
+        with httpx.Client(headers=_ozon_headers(), follow_redirects=False, timeout=timeout, proxy=_http_proxy()) as client:
+            return _get_with_one_redirect(client, url)
 
 
 class OzonAdapter(MarketplaceAdapter, RuntimeAwareAdapter):
@@ -105,7 +141,7 @@ class OzonAdapter(MarketplaceAdapter, RuntimeAwareAdapter):
 
 
 def _ozon_headers() -> dict[str, str]:
-    return {
+    headers = {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
         "Cache-Control": "no-cache",
@@ -115,6 +151,25 @@ def _ozon_headers() -> dict[str, str]:
             "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
         ),
     }
+    cookies = os.getenv("OZON_COOKIES", "").strip()
+    if cookies:
+        headers["Cookie"] = cookies
+    return headers
+
+
+def _ozon_search_path(query: str) -> str:
+    return f"/search/?text={quote_plus(query.strip())}&from_global=true"
+
+
+def _http_proxy() -> str | None:
+    return os.getenv("PARSER_HTTP_PROXY") or None
+
+
+def _get_with_one_redirect(client: httpx.Client, url: str) -> httpx.Response:
+    response = client.get(url)
+    if response.is_redirect and response.headers.get("location"):
+        return client.get(urljoin(str(response.url), response.headers["location"]))
+    return response
 
 
 def _is_antibot_page(html: str) -> bool:
@@ -141,6 +196,156 @@ def _extract_jsonld_offers(soup: BeautifulSoup, params: SearchParams) -> list[Ma
             seen.add(offer.external_id)
             offers.append(offer)
     return offers
+
+
+def _extract_composer_offers(payload: dict[str, Any], params: SearchParams) -> list[MarketplaceOffer]:
+    offers: list[MarketplaceOffer] = []
+    seen: set[str] = set()
+
+    for node in _walk_composer_nodes(payload):
+        product_url = _first_product_url(node)
+        if not product_url:
+            continue
+        external_key = _ozon_external_key(product_url)
+        if not external_key or external_key in seen:
+            continue
+
+        title = _composer_title(node)
+        price = _composer_price(node)
+        if not title or not price:
+            continue
+
+        seen.add(external_key)
+        text = _composer_text(node)
+        offers.append(
+            MarketplaceOffer(
+                external_id=f"ozon-{external_key}",
+                marketplace="ozon",
+                title=title,
+                price=price,
+                old_price=None,
+                discount_percent=None,
+                rating=_find_rating(text),
+                reviews_count=_find_reviews_count(text),
+                seller_name=None,
+                seller_rating=None,
+                image_url=_composer_image_url(node),
+                product_url=product_url,
+                availability=True,
+                delivery_info="Уточняется на Ozon",
+                collected_at=datetime.now(timezone.utc),
+            )
+        )
+    return offers
+
+
+def _walk_composer_nodes(node: Any) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
+    stack = [node]
+    decoded_strings = 0
+
+    while stack:
+        current = stack.pop()
+        if isinstance(current, dict):
+            found.append(current)
+            stack.extend(current.values())
+            continue
+        if isinstance(current, list):
+            stack.extend(current)
+            continue
+        if isinstance(current, str) and decoded_strings < 100:
+            stripped = current.strip()
+            if stripped[:1] in {"{", "["}:
+                try:
+                    stack.append(json.loads(stripped))
+                    decoded_strings += 1
+                except json.JSONDecodeError:
+                    pass
+    return found
+
+
+def _first_product_url(node: Any) -> str | None:
+    for value in _walk_scalar_values(node):
+        if not isinstance(value, str) or "/product/" not in value:
+            continue
+        normalized = value.split("?")[0]
+        return urljoin(OZON_BASE_URL, normalized)
+    return None
+
+
+def _composer_title(node: dict[str, Any]) -> str | None:
+    for key, value in _walk_key_values(node):
+        if not isinstance(value, str):
+            continue
+        lowered_key = key.lower()
+        if "title" not in lowered_key and "name" not in lowered_key and lowered_key != "text":
+            continue
+        if PRICE_RE.search(value) or "отзыв" in value.lower():
+            continue
+        title = _clean_dom_title(value)
+        if _looks_like_title(title):
+            return title[:180]
+    return None
+
+
+def _composer_price(node: dict[str, Any]) -> float | None:
+    for value in _walk_scalar_values(node):
+        if isinstance(value, str):
+            price = _find_price(value)
+            if price:
+                return price
+
+    for key, value in _walk_key_values(node):
+        if "price" not in key.lower() or not isinstance(value, (int, float, str)):
+            continue
+        price = _as_price(value)
+        if price and 10 <= price <= 10_000_000:
+            return price / 100 if price > 1_000_000 else price
+    return None
+
+
+def _composer_image_url(node: dict[str, Any]) -> str | None:
+    for value in _walk_scalar_values(node):
+        if not isinstance(value, str):
+            continue
+        if "cdn" in value and ("ozone.ru" in value or "ozonusercontent.com" in value):
+            return urljoin(OZON_BASE_URL, value)
+        if re.search(r"\.(?:webp|jpg|jpeg|png)(?:[?#]|$)", value):
+            return urljoin(OZON_BASE_URL, value)
+    return None
+
+
+def _composer_text(node: dict[str, Any]) -> str:
+    values = [value for value in _walk_scalar_values(node) if isinstance(value, str)]
+    return " ".join(values[:80])
+
+
+def _walk_key_values(node: Any) -> list[tuple[str, Any]]:
+    items: list[tuple[str, Any]] = []
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, dict):
+            for key, value in current.items():
+                items.append((str(key), value))
+                stack.append(value)
+        elif isinstance(current, list):
+            stack.extend(current)
+    return items
+
+
+def _walk_scalar_values(node: Any) -> list[Any]:
+    values: list[Any] = []
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, dict):
+            stack.extend(current.values())
+        elif isinstance(current, list):
+            stack.extend(current)
+        else:
+            values.append(current)
+    return values
 
 
 def _walk_jsonld_products(node: Any) -> list[dict[str, Any]]:
@@ -274,6 +479,14 @@ def _clean_dom_title(text: str) -> str:
     without_prices = PRICE_RE.sub(" ", text)
     without_reviews = REVIEWS_RE.sub(" ", without_prices)
     return " ".join(without_reviews.split())
+
+
+def _looks_like_title(text: str) -> bool:
+    if len(text) < 5 or len(text) > 220:
+        return False
+    lowered = text.lower()
+    ignored_fragments = ("₽", "руб", "отзыв", "доставка", "в корзину", "ozon")
+    return not any(fragment in lowered for fragment in ignored_fragments)
 
 
 def _dom_image_url(card: Any) -> str | None:

@@ -1,11 +1,12 @@
-import pytest
 import httpx
+import pytest
 
+from app.searches.service import _should_fail_real_search
 from market_parser.adapters.ozon import OzonAdapter, OzonHttpAdapter
 from market_parser.adapters.wildberries import WildberriesAdapter
 from market_parser.cache import OFFER_CACHE
 from market_parser.errors import AdapterUnavailableError
-from market_parser.models import SearchParams
+from market_parser.models import MarketplaceOffer, ParserLogEntry, SearchParams
 from market_parser.service import collect_offers
 
 
@@ -23,9 +24,15 @@ class EmptyHttpAdapter:
 
 
 class FixtureOzonHttpAdapter(OzonHttpAdapter):
-    def __init__(self, html: str, status_code: int = 200) -> None:
+    def __init__(self, html: str = "", status_code: int = 200, composer_payload: dict | None = None) -> None:
         self.html = html
         self.status_code = status_code
+        self.composer_payload = composer_payload
+
+    def _fetch_composer_payload(self, query: str) -> dict:  # noqa: ARG002
+        if self.composer_payload is None:
+            raise AdapterUnavailableError("ozon", "composer unavailable")
+        return self.composer_payload
 
     def _fetch_search_page(self, query: str) -> httpx.Response:  # noqa: ARG002
         request = httpx.Request("GET", "https://www.ozon.ru/search/?text=phone")
@@ -110,3 +117,62 @@ def test_ozon_http_adapter_extracts_jsonld_products():
     assert offers[0].price == 42990
     assert offers[0].rating == 4.8
     assert offers[0].reviews_count == 321
+
+
+def test_ozon_http_adapter_extracts_composer_products():
+    payload = {
+        "widgetStates": {
+            "searchResultsV2-1": """
+            {
+              "items": [
+                {
+                  "action": {"link": "/product/phone-pro-987654321/"},
+                  "mainState": [
+                    {"atom": {"textAtom": {"text": "Phone Pro Max"}}},
+                    {"atom": {"priceV2": {"price": "51 990 ₽"}}},
+                    {"atom": {"textAtom": {"text": "4,9 777 отзывов"}}}
+                  ],
+                  "tileImage": {"image": "https://cdn1.ozone.ru/s3/phone.webp"}
+                }
+              ]
+            }
+            """
+        }
+    }
+
+    offers = FixtureOzonHttpAdapter(composer_payload=payload).search_products(
+        SearchParams(query="phone", marketplaces=["ozon"])
+    )
+
+    assert len(offers) == 1
+    assert offers[0].external_id == "ozon-987654321"
+    assert offers[0].title == "Phone Pro Max"
+    assert offers[0].price == 51990
+    assert offers[0].rating == 4.9
+    assert offers[0].reviews_count == 777
+
+
+def test_real_search_fails_when_live_sources_return_only_errors(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("PARSER_MODE", "real")
+    logs = [
+        ParserLogEntry(
+            marketplace="ozon",
+            level="error",
+            message="Adapter source: failed (anti-bot challenge)",
+        )
+    ]
+
+    assert _should_fail_real_search([], logs)
+
+
+def test_real_search_stays_completed_when_at_least_one_live_offer(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("PARSER_MODE", "real")
+    offer = MarketplaceOffer(
+        external_id="ozon-1",
+        marketplace="ozon",
+        title="Phone",
+        price=1000,
+        product_url="https://www.ozon.ru/product/phone-1/",
+    )
+
+    assert not _should_fail_real_search([offer], [])

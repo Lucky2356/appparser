@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -62,6 +63,9 @@ def _process_search_with_session(db: Session, search_id: str) -> None:
                 )
             )
 
+        if _should_fail_real_search(collected.offers, collected.logs):
+            raise RuntimeError("Live marketplace sources did not return real offers. Check parser logs for source errors.")
+
         for item in ranked[:50]:
             db.add(
                 Offer(
@@ -102,3 +106,14 @@ def _process_search_with_session(db: Session, search_id: str) -> None:
             )
         )
         db.commit()
+
+
+def _should_fail_real_search(offers: list, logs: list) -> bool:
+    if os.getenv("PARSER_MODE", "mock").lower() != "real" or offers:
+        return False
+    source_failures = [
+        log
+        for log in logs
+        if log.level == "error" or log.message.startswith("Adapter source: failed")
+    ]
+    return bool(source_failures)

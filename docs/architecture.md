@@ -19,7 +19,7 @@ The frontend never talks to marketplaces directly. It creates a search task thro
 
 ## Parser strategy
 
-The stable local default is deterministic mock data, while `hybrid` and `real` modes use best-effort live adapters. The adapter interface keeps that boundary narrow:
+The production default is real Ozon/Wildberries collection. Deterministic mock data is available only when `PARSER_MODE=mock` is set explicitly. The adapter interface keeps that boundary narrow:
 
 ```py
 class MarketplaceAdapter:
@@ -29,11 +29,11 @@ class MarketplaceAdapter:
         ...
 ```
 
-Live adapters use defensive parsing, explicit timeouts, source-specific errors, and per-adapter runtime status. A broken adapter returns a parser log entry or raises an adapter-scoped error without failing the whole search.
+Live adapters use defensive parsing, explicit timeouts, source-specific errors, optional source cookies/proxy settings, and per-adapter runtime status. A broken adapter returns a parser log entry or raises an adapter-scoped error without failing the whole search.
 
 The current parser layer already includes in-process TTL caching and per-marketplace rate limiting. In production, this can be swapped to Redis-backed cache/limits without changing adapter contracts.
 
-`PARSER_MODE=mock` is the stable default. `PARSER_MODE=hybrid` enables best-effort HTTP collection and falls back to mock data if the source rate-limits, blocks, or returns an unexpected page. `PARSER_MODE=real` disables fallback for adapters that implement live collection. Result logs include `Adapter source: mock/live/fallback/failed` so operators can see what happened for each marketplace.
+`PARSER_MODE=real` disables fallback for adapters that implement live collection. If all requested live sources fail and no offers are collected, the search is marked failed instead of completed with mock data. `PARSER_MODE=hybrid` enables best-effort HTTP collection and falls back to mock data if the source rate-limits, blocks, or returns an unexpected page. `PARSER_MODE=mock` is for tests and local demos. Result logs include `Adapter source: mock/live/fallback/failed` so operators can see what happened for each marketplace.
 
 ## Scoring
 

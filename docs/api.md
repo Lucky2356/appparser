@@ -79,4 +79,4 @@ Create search:
 
 - `GET /marketplaces`
 
-Response items include `isMock` and `sourceMode`. `sourceMode` mirrors `PARSER_MODE` (`mock`, `hybrid`, or `real`) so the frontend can show whether a marketplace is running deterministic data, live-only collection, or live collection with fallback.
+Response items include `isMock` and `sourceMode`. `sourceMode` mirrors `PARSER_MODE` (`real`, `hybrid`, or `mock`) so the frontend can show whether a marketplace is running live-only collection, live collection with fallback, or deterministic development data.

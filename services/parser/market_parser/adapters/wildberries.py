@@ -29,7 +29,12 @@ class WildberriesHttpAdapter(MarketplaceAdapter):
         errors: list[str] = []
         timeout = float(os.getenv("PARSER_HTTP_TIMEOUT_SECONDS", "8"))
 
-        with httpx.Client(headers=_wildberries_headers(), follow_redirects=True, timeout=timeout) as client:
+        with httpx.Client(
+            headers=_wildberries_headers(),
+            follow_redirects=True,
+            timeout=timeout,
+            proxy=_http_proxy(),
+        ) as client:
             for version, url in _wildberries_search_urls(params.query):
                 try:
                     response = client.get(url)
@@ -83,7 +88,7 @@ class WildberriesHttpAdapter(MarketplaceAdapter):
             reviews_count=_as_int(product.get("feedbacks")),
             seller_name=product.get("supplier") or product.get("brand"),
             seller_rating=None,
-            image_url=None,
+            image_url=_wildberries_image_url(product_id),
             product_url=f"https://www.wildberries.ru/catalog/{product_id}/detail.aspx",
             availability=True,
             delivery_info="Уточняется на Wildberries",
@@ -138,7 +143,7 @@ class WildberriesAdapter(MarketplaceAdapter, RuntimeAwareAdapter):
 
 
 def _wildberries_headers() -> dict[str, str]:
-    return {
+    headers = {
         "Accept": "application/json, text/plain, */*",
         "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
         "Referer": "https://www.wildberries.ru/",
@@ -148,6 +153,10 @@ def _wildberries_headers() -> dict[str, str]:
             "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
         ),
     }
+    cookies = os.getenv("WILDBERRIES_COOKIES", "").strip()
+    if cookies:
+        headers["Cookie"] = cookies
+    return headers
 
 
 def _wildberries_search_urls(query: str) -> list[tuple[str, str]]:
@@ -158,10 +167,51 @@ def _wildberries_search_urls(query: str) -> list[tuple[str, str]]:
         "&resultset=catalog&sort=popular&spp=30&suppressSpellcheck=false"
     )
     return [
+        ("v19", f"https://search.wb.ru/exactmatch/ru/common/v19/search?{common_params}"),
         ("v18", f"https://search.wb.ru/exactmatch/ru/common/v18/search?{common_params}"),
         ("v14", f"https://search.wb.ru/exactmatch/ru/common/v14/search?{common_params}"),
+        ("v7", f"https://search.wb.ru/exactmatch/ru/common/v7/search?{common_params}"),
+        ("v5", f"https://search.wb.ru/exactmatch/ru/common/v5/search?{common_params}"),
+        ("v4", f"https://search.wb.ru/exactmatch/ru/common/v4/search?{common_params}"),
         ("v13", f"https://search.wb.ru/exactmatch/ru/common/v13/search?{common_params}"),
     ]
+
+
+def _http_proxy() -> str | None:
+    return os.getenv("PARSER_HTTP_PROXY") or None
+
+
+def _wildberries_image_url(product_id: object) -> str | None:
+    product_number = _as_int(product_id)
+    if product_number is None:
+        return None
+    vol = product_number // 100000
+    part = product_number // 1000
+    return f"https://basket-{_wildberries_basket(vol)}.wbbasket.ru/vol{vol}/part{part}/{product_number}/images/big/1.webp"
+
+
+def _wildberries_basket(vol: int) -> str:
+    ranges = [
+        (143, "01"),
+        (287, "02"),
+        (431, "03"),
+        (719, "04"),
+        (1007, "05"),
+        (1061, "06"),
+        (1115, "07"),
+        (1169, "08"),
+        (1313, "09"),
+        (1601, "10"),
+        (1655, "11"),
+        (1919, "12"),
+        (2045, "13"),
+        (2189, "14"),
+        (2405, "15"),
+    ]
+    for max_vol, basket in ranges:
+        if vol <= max_vol:
+            return basket
+    return "16"
 
 
 def _compact_runtime_detail(detail: str, limit: int = 160) -> str:

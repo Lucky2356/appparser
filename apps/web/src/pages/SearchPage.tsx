@@ -16,7 +16,7 @@ export function SearchPage() {
   const [query, setQuery] = useState("Телефон Samsung");
   const [marketplaces, setMarketplaces] = useState<Marketplace[]>([]);
   const [selected, setSelected] = useState<string[]>(["ozon", "wildberries"]);
-  const [filters, setFilters] = useState<SearchFilters>({ minRating: 4.7, minReviews: 100, maxPrice: 50000 });
+  const [filters, setFilters] = useState<SearchFilters>({});
   const [sort, setSort] = useState("best_value");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);

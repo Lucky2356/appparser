@@ -1,6 +1,6 @@
 # Appsparcer
 
-Web app for finding value offers across marketplaces. The product flow, API, database, queue, scoring, history, favorites, tracked products, and notifications work with deterministic mock data by default and can switch to best-effort live marketplace collection.
+Web app for finding value offers across marketplaces. The production configuration uses real Ozon and Wildberries source adapters by default. Deterministic mock data is still available only as an explicit development/test mode.
 
 ## Stack
 
@@ -41,7 +41,8 @@ Open:
 - Optional Telegram notifications through Bot API
 - Hourly Celery beat task for tracked product refresh
 - Parser cache and per-marketplace rate limiting
-- Best-effort Ozon and Wildberries live adapters in `PARSER_MODE=hybrid`
+- Real Ozon and Wildberries adapters in `PARSER_MODE=real`
+- Optional `hybrid` mode for development demos with mock fallback
 - Runtime parser logs showing whether data came from `mock`, `live`, `fallback`, or `failed` sources
 - PWA manifest and service worker
 - Alembic migrations
@@ -53,11 +54,11 @@ Open:
 
 Parser modes:
 
-- `PARSER_MODE=mock`: deterministic local data, default for tests and development.
+- `PARSER_MODE=real`: live Ozon/Wildberries collection only. If live sources block or return no usable product data, the search fails with source logs instead of showing mock products.
 - `PARSER_MODE=hybrid`: tries live Ozon/Wildberries collection first, then falls back to mock data if a source rate-limits, blocks, or returns an unexpected page.
-- `PARSER_MODE=real`: uses only live adapters and records adapter failures instead of fallback data.
+- `PARSER_MODE=mock`: deterministic local data for tests and development.
 
-Live collection uses `PARSER_HTTP_TIMEOUT_SECONDS`, `PARSER_USER_AGENT`, and `WILDBERRIES_DEST` from the environment. Marketplace pages and private endpoints can rate-limit or block automated requests, so the app keeps source status visible in result logs.
+Live collection uses `PARSER_HTTP_TIMEOUT_SECONDS`, `PARSER_HTTP_PROXY`, `PARSER_USER_AGENT`, `OZON_COOKIES`, `WILDBERRIES_COOKIES`, and `WILDBERRIES_DEST` from the environment. Marketplace pages and private endpoints can rate-limit or block automated requests, so the app keeps source status visible in result logs and never treats fallback data as real results.
 
 Backend:
 
