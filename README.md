@@ -38,7 +38,7 @@ Run local checks against live marketplace adapters:
 Open:
 
 - Web: http://localhost:3000
-- API docs: http://localhost:8000/docs
+- API docs: http://localhost:8001/docs
 
 Run Docker in background:
 
