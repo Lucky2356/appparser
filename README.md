@@ -12,15 +12,20 @@ Web app for finding value offers across marketplaces. The production configurati
 
 ## Run with Docker
 
-```bash
-cp .env.example .env
-docker compose up --build
+```powershell
+.\start.cmd
 ```
 
 Open:
 
 - Web: http://localhost:3000
 - API docs: http://localhost:8000/docs
+
+Run in background:
+
+```powershell
+.\start.cmd -Detached
+```
 
 ## MVP features
 
