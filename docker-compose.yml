@@ -47,8 +47,8 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_TIMEOUT_SECONDS: ${TELEGRAM_TIMEOUT_SECONDS:-8}
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     ports:
@@ -59,11 +59,11 @@ services:
       timeout: 5s
       retries: 10
 
-  worker:
+  migrate:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    command: sh -c "alembic -c apps/api/alembic.ini upgrade head && celery -A app.workers.celery_app.celery_app worker --loglevel=info --pool=solo"
+    command: alembic -c apps/api/alembic.ini upgrade head
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://appsparcer:appsparcer@postgres:5432/appsparcer}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
@@ -84,6 +84,32 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: celery -A app.workers.celery_app.celery_app worker --loglevel=info --pool=solo
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://appsparcer:appsparcer@postgres:5432/appsparcer}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-before-production}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      AUTO_CREATE_TABLES: ${AUTO_CREATE_TABLES:-false}
+      PARSER_CACHE_TTL_SECONDS: ${PARSER_CACHE_TTL_SECONDS:-300}
+      PARSER_MIN_INTERVAL_SECONDS: ${PARSER_MIN_INTERVAL_SECONDS:-0.2}
+      PARSER_MODE: ${PARSER_MODE:-real}
+      PARSER_HTTP_TIMEOUT_SECONDS: ${PARSER_HTTP_TIMEOUT_SECONDS:-8}
+      PARSER_HTTP_PROXY: ${PARSER_HTTP_PROXY:-}
+      PARSER_USER_AGENT: ${PARSER_USER_AGENT:-}
+      OZON_COOKIES: ${OZON_COOKIES:-}
+      WILDBERRIES_COOKIES: ${WILDBERRIES_COOKIES:-}
+      WILDBERRIES_DEST: ${WILDBERRIES_DEST:--1257786}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_TIMEOUT_SECONDS: ${TELEGRAM_TIMEOUT_SECONDS:-8}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -91,7 +117,7 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    command: sh -c "alembic -c apps/api/alembic.ini upgrade head && celery -A app.workers.celery_app.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule"
+    command: celery -A app.workers.celery_app.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://appsparcer:appsparcer@postgres:5432/appsparcer}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
@@ -110,8 +136,8 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_TIMEOUT_SECONDS: ${TELEGRAM_TIMEOUT_SECONDS:-8}
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 

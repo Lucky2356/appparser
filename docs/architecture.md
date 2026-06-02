@@ -50,7 +50,7 @@ Weights live in `services/parser/market_parser/scoring.py` and are intentionally
 
 ## Database lifecycle
 
-Alembic migrations live in `apps/api/migrations`. Docker runs `alembic upgrade head` before starting API and worker containers. `AUTO_CREATE_TABLES=true` remains available for quick local SQLite development only.
+Alembic migrations live in `apps/api/migrations`. Docker runs `alembic upgrade head` once in the `migrate` service before starting API, worker, and beat containers. `AUTO_CREATE_TABLES=true` remains available for quick local SQLite development only.
 
 ## Notifications
 
