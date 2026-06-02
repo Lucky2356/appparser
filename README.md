@@ -10,7 +10,9 @@ Web app for finding value offers across marketplaces. The production configurati
 - Database: PostgreSQL
 - Parser layer: marketplace adapters with a shared normalized offer model
 
-## Run with Docker
+## Quick Local Run
+
+This starts the API and web app locally without Docker. It uses SQLite in `.runtime/` and mock parser data by default so the interface can be checked immediately.
 
 ```powershell
 .\start.cmd
@@ -18,13 +20,30 @@ Web app for finding value offers across marketplaces. The production configurati
 
 Open:
 
+- Web: http://localhost:5173
+- API docs: http://localhost:8000/docs
+
+Run local checks against live marketplace adapters:
+
+```powershell
+.\start.cmd -ParserMode real
+```
+
+## Run with Docker
+
+```powershell
+.\start-docker.cmd
+```
+
+Open:
+
 - Web: http://localhost:3000
 - API docs: http://localhost:8000/docs
 
-Run in background:
+Run Docker in background:
 
 ```powershell
-.\start.cmd -Detached
+.\start-docker.cmd -Detached
 ```
 
 ## MVP features
