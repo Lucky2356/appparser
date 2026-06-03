@@ -107,6 +107,8 @@ For Ozon, the most stable local setup is a saved browser session:
 
 The script validates the opened browser session before saving it. Do not press Enter while Ozon still shows a captcha, access check, or empty page; wait until real product cards are visible. After a valid session is saved, the script writes `OZON_STORAGE_STATE_FILE=/app/.runtime/ozon-storage-state.json` to `.env`. The compose file mounts `.runtime` into the API and worker containers.
 
+If Ozon says the opened browser or network is using VPN/proxy and never shows product cards, the local live Ozon scraper cannot use that route. In that case use a legitimate Ozon data source/API access or a network Ozon accepts; the app will keep Ozon errors visible instead of silently showing fake data.
+
 You can verify Ozon access without starting the full stack:
 
 ```powershell

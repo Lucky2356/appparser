@@ -28,6 +28,7 @@ from pathlib import Path
 import sys
 from urllib.parse import quote_plus
 
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
@@ -42,7 +43,13 @@ user_agent = (
 
 def is_antibot_page(html: str) -> bool:
     lowered = html.lower()
-    return "antibot challenge" in lowered or "abt-challenge" in lowered or "captcha" in lowered
+    return (
+        "antibot challenge" in lowered
+        or "abt-challenge" in lowered
+        or "captcha" in lowered
+        or "vpn" in lowered
+        or "впн" in lowered
+    )
 
 
 def ozon_cookie_count(context) -> int:
@@ -60,12 +67,20 @@ with sync_playwright() as playwright:
     )
 
     while True:
-        response = page.goto(search_url, wait_until="domcontentloaded")
-        print("")
-        print("In the opened browser, make sure Ozon shows real search results, not a captcha or access page.")
-        print("If needed, sign in or finish the access check. Then return here and press Enter.")
-        command = input("Press Enter to validate the Ozon session, or type q to cancel: ").strip().lower()
-        if command in {"q", "quit", "exit"}:
+        try:
+            response = page.goto(search_url, wait_until="domcontentloaded")
+            print("")
+            print("In the opened browser, make sure Ozon shows real search results, not a captcha or access page.")
+            print("If Ozon says this browser/network uses VPN or blocks access, this session cannot be used.")
+            print("If needed, sign in or finish the access check. Then return here and press Enter.")
+            command = input("Press Enter to validate the Ozon session, or type q to cancel: ").strip().lower()
+            if command in {"q", "quit", "exit"}:
+                browser.close()
+                raise SystemExit(1)
+        except PlaywrightError as exc:
+            print("")
+            print("Ozon session was not saved: the browser page was closed or blocked before validation.")
+            print(f"Playwright error: {exc.__class__.__name__}")
             browser.close()
             raise SystemExit(1)
 
@@ -74,15 +89,22 @@ with sync_playwright() as playwright:
         except PlaywrightTimeoutError:
             pass
 
-        status_code = response.status if response else 0
-        html = page.content()
-        product_links = page.locator('a[href*="/product/"]').count()
-        cookie_count = ozon_cookie_count(context)
-        composer_status = 0
         try:
-            composer_status = context.request.get(composer_url, timeout=12000).status
-        except Exception:
+            status_code = response.status if response else 0
+            html = page.content()
+            product_links = page.locator('a[href*="/product/"]').count()
+            cookie_count = ozon_cookie_count(context)
             composer_status = 0
+            try:
+                composer_status = context.request.get(composer_url, timeout=12000).status
+            except Exception:
+                composer_status = 0
+        except PlaywrightError as exc:
+            print("")
+            print("Ozon session was not saved: the browser page became unavailable during validation.")
+            print(f"Playwright error: {exc.__class__.__name__}")
+            browser.close()
+            raise SystemExit(1)
 
         blocked = status_code in {403, 429} or composer_status in {403, 429} or is_antibot_page(html)
         if not blocked and (product_links > 0 or (200 <= composer_status < 400)):
@@ -98,6 +120,8 @@ with sync_playwright() as playwright:
             "Ozon session is still not usable: "
             f"page={status_code}, composer={composer_status}, products={product_links}, cookies={cookie_count}."
         )
+        if is_antibot_page(html):
+            print("Ozon is still showing an access/VPN/captcha page, not real product results.")
         print("Keep the browser open, finish Ozon access until product cards are visible, then try validation again.")
 
 print(f"Saved Ozon storage state: {output}")
