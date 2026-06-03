@@ -17,6 +17,9 @@ export type Marketplace = {
   enabled: boolean;
   isMock: boolean;
   sourceMode: string;
+  accessConfigured: boolean;
+  browserFallbackEnabled: boolean;
+  statusNote: string;
 };
 
 export type SearchFilters = {

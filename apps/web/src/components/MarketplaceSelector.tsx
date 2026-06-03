@@ -8,6 +8,13 @@ type Props = {
   onChange: (selected: string[]) => void;
 };
 
+function sourceLabel(marketplace: Marketplace) {
+  if (marketplace.isMock) return "mock";
+  if (marketplace.sourceMode !== "real") return "live + fallback";
+  if (!marketplace.accessConfigured) return "нужен доступ";
+  return marketplace.browserFallbackEnabled ? "live + browser" : "live";
+}
+
 export function MarketplaceSelector({ marketplaces, selected, onChange }: Props) {
   function toggle(id: string) {
     if (selected.includes(id)) {
@@ -36,10 +43,15 @@ export function MarketplaceSelector({ marketplaces, selected, onChange }: Props)
           >
             <span>
               <span className="block text-sm font-semibold">{marketplace.name}</span>
-              {marketplace.isMock ? <span className="text-xs text-slate-500">mock</span> : null}
-              {!marketplace.isMock ? (
-                <span className="text-xs text-slate-500">{marketplace.sourceMode === "real" ? "live" : "live + fallback"}</span>
-              ) : null}
+              <span
+                className={[
+                  "text-xs",
+                  !marketplace.accessConfigured && !marketplace.isMock ? "text-amber-600 dark:text-amber-300" : "text-slate-500"
+                ].join(" ")}
+                title={marketplace.statusNote}
+              >
+                {sourceLabel(marketplace)}
+              </span>
             </span>
             <span
               className={[

@@ -19,6 +19,15 @@ function logToneClass(level: ParserLog["level"]) {
   return "border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300";
 }
 
+function sourceSummary(logs: ParserLog[]) {
+  const marketplaces = Array.from(new Set(logs.map((log) => log.marketplace).filter((marketplace) => marketplace !== "system")));
+  const live = marketplaces.filter((marketplace) =>
+    logs.some((log) => log.marketplace === marketplace && log.level === "info" && log.message.includes("Adapter source: live"))
+  );
+  const blocked = marketplaces.filter((marketplace) => logs.some((log) => log.marketplace === marketplace && log.level === "error"));
+  return { blocked, live };
+}
+
 export function ResultsPage() {
   const { searchId } = useParams();
   const { token } = useAuth();
@@ -80,8 +89,9 @@ export function ResultsPage() {
     }
   }
 
-  const hasErrorLogs = logs.some((log) => log.level === "error");
-  const shouldOpenLogs = Boolean(search?.status === "failed" || hasErrorLogs || (search?.status === "completed" && results.length === 0));
+  const sources = sourceSummary(logs);
+  const hasPartialSourceErrors = Boolean(search?.status === "completed" && results.length > 0 && sources.blocked.length);
+  const shouldOpenLogs = Boolean(search?.status === "failed" || (search?.status === "completed" && results.length === 0));
 
   return (
     <>
@@ -128,6 +138,16 @@ export function ResultsPage() {
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-500">
           <span className="rounded-md bg-slate-100 px-2 py-1 dark:bg-slate-800">{search.query}</span>
           <span className="rounded-md bg-slate-100 px-2 py-1 dark:bg-slate-800">{search.status}</span>
+          {sources.live.length ? (
+            <span className="rounded-md bg-emerald-50 px-2 py-1 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
+              live: {sources.live.join(", ")}
+            </span>
+          ) : null}
+          {hasPartialSourceErrors ? (
+            <span className="rounded-md bg-amber-50 px-2 py-1 text-amber-700 dark:bg-amber-950 dark:text-amber-200">
+              частично недоступно: {sources.blocked.join(", ")}
+            </span>
+          ) : null}
           {favoriteMessage ? <span className="rounded-md bg-emerald-50 px-2 py-1 text-emerald-700">{favoriteMessage}</span> : null}
         </div>
       ) : null}

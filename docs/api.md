@@ -79,4 +79,5 @@ Create search:
 
 - `GET /marketplaces`
 
-Response items include `isMock` and `sourceMode`. `sourceMode` mirrors `PARSER_MODE` (`real`, `hybrid`, or `mock`) so the frontend can show whether a marketplace is running live-only collection, live collection with fallback, or deterministic development data.
+Response items include `isMock`, `sourceMode`, `accessConfigured`, `browserFallbackEnabled`, and `statusNote`.
+`sourceMode` mirrors `PARSER_MODE` (`real`, `hybrid`, or `mock`). Access fields are safe booleans/notes only; cookie, proxy, and token values are never returned.
