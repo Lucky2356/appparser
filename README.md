@@ -109,6 +109,8 @@ The script validates the opened browser session before saving it. Do not press E
 
 If Ozon says the opened browser or network is using VPN/proxy and never shows product cards, the local live Ozon scraper cannot use that route. In that case use a legitimate Ozon data source/API access or a network Ozon accepts; the app will keep Ozon errors visible instead of silently showing fake data.
 
+When validation fails, diagnostic files are written to `.runtime/ozon-diagnostics/` so you can inspect the blocked page without exposing cookies in logs.
+
 You can verify Ozon access without starting the full stack:
 
 ```powershell

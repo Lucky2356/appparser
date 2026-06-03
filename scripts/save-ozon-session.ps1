@@ -1,5 +1,6 @@
 param(
-  [string]$OutputPath = ".runtime\ozon-storage-state.json"
+  [string]$OutputPath = ".runtime\ozon-storage-state.json",
+  [string]$DiagnosticsPath = ".runtime\ozon-diagnostics"
 )
 
 $ErrorActionPreference = "Stop"
@@ -20,10 +21,19 @@ $ResolvedOutput = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
   Join-Path $RepoRoot $OutputPath
 }
 
+$ResolvedDiagnostics = if ([System.IO.Path]::IsPathRooted($DiagnosticsPath)) {
+  $DiagnosticsPath
+} else {
+  Join-Path $RepoRoot $DiagnosticsPath
+}
+
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ResolvedOutput) | Out-Null
+New-Item -ItemType Directory -Force -Path $ResolvedDiagnostics | Out-Null
 $env:PYTHONPATH = "$ApiDir;$ParserDir"
 
 $pythonCode = @'
+from datetime import datetime
+import json
 from pathlib import Path
 import sys
 from urllib.parse import quote_plus
@@ -34,6 +44,8 @@ from playwright.sync_api import sync_playwright
 
 
 output = Path(sys.argv[1]).resolve()
+diagnostics = Path(sys.argv[2]).resolve()
+diagnostics.mkdir(parents=True, exist_ok=True)
 query = "iphone"
 user_agent = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -54,6 +66,25 @@ def is_antibot_page(html: str) -> bool:
 
 def ozon_cookie_count(context) -> int:
     return len([cookie for cookie in context.cookies() if "ozon" in cookie.get("domain", "")])
+
+
+def write_diagnostic(name: str, details: dict, page=None, html: str | None = None) -> Path:
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    base = diagnostics / f"{stamp}-{name}"
+    details_path = base.with_suffix(".json")
+    details_path.write_text(json.dumps(details, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    if html:
+        base.with_suffix(".html").write_text(html, encoding="utf-8", errors="ignore")
+
+    if page is not None:
+        try:
+            if not page.is_closed():
+                page.screenshot(path=str(base.with_suffix(".png")), full_page=True, timeout=5000)
+        except PlaywrightError:
+            pass
+
+    return base
 
 
 with sync_playwright() as playwright:
@@ -81,6 +112,12 @@ with sync_playwright() as playwright:
             print("")
             print("Ozon session was not saved: the browser page was closed or blocked before validation.")
             print(f"Playwright error: {exc.__class__.__name__}")
+            diagnostic = write_diagnostic(
+                "page-unavailable",
+                {"stage": "before-validation", "error": exc.__class__.__name__, "message": str(exc)[:500]},
+                page=page,
+            )
+            print(f"Diagnostic saved near: {diagnostic}")
             browser.close()
             raise SystemExit(1)
 
@@ -103,6 +140,12 @@ with sync_playwright() as playwright:
             print("")
             print("Ozon session was not saved: the browser page became unavailable during validation.")
             print(f"Playwright error: {exc.__class__.__name__}")
+            diagnostic = write_diagnostic(
+                "validation-unavailable",
+                {"stage": "validation", "error": exc.__class__.__name__, "message": str(exc)[:500]},
+                page=page,
+            )
+            print(f"Diagnostic saved near: {diagnostic}")
             browser.close()
             raise SystemExit(1)
 
@@ -122,12 +165,26 @@ with sync_playwright() as playwright:
         )
         if is_antibot_page(html):
             print("Ozon is still showing an access/VPN/captcha page, not real product results.")
+        diagnostic = write_diagnostic(
+            "blocked",
+            {
+                "stage": "blocked",
+                "pageStatus": status_code,
+                "composerStatus": composer_status,
+                "products": product_links,
+                "ozonCookies": cookie_count,
+                "antibotTextDetected": is_antibot_page(html),
+            },
+            page=page,
+            html=html,
+        )
+        print(f"Diagnostic saved near: {diagnostic}")
         print("Keep the browser open, finish Ozon access until product cards are visible, then try validation again.")
 
 print(f"Saved Ozon storage state: {output}")
 '@
 
-& $Python -c $pythonCode $ResolvedOutput
+& $Python -c $pythonCode $ResolvedOutput $ResolvedDiagnostics
 
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
