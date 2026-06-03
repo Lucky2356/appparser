@@ -1,5 +1,6 @@
 param(
     [switch]$Detached,
+    [switch]$SkipBasePull,
     [ValidateSet("mock", "hybrid", "real")]
     [string]$ParserMode = "real"
 )
@@ -103,9 +104,58 @@ if ($ParserMode -eq "real") {
 }
 Write-Host ""
 
+$env:COMPOSE_PARALLEL_LIMIT = if ($env:COMPOSE_PARALLEL_LIMIT) { $env:COMPOSE_PARALLEL_LIMIT } else { "1" }
+
+function Test-LocalDockerImage($Image) {
+    & docker image inspect $Image *> $null
+    return $LASTEXITCODE -eq 0
+}
+
+function Invoke-DockerWithRetry($DockerArgs, $Description, $MaxAttempts = 3) {
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        Write-Host "$Description (attempt $attempt/$MaxAttempts)..."
+        & docker @DockerArgs
+        if ($LASTEXITCODE -eq 0) {
+            return $true
+        }
+
+        if ($attempt -lt $MaxAttempts) {
+            $delaySeconds = [math]::Min(30, 5 * $attempt)
+            Write-Host "Docker command failed. Retrying in $delaySeconds seconds..."
+            Start-Sleep -Seconds $delaySeconds
+        }
+    }
+
+    return $false
+}
+
+if (-not $SkipBasePull) {
+    $baseImages = @(
+        "node:22-alpine",
+        "nginx:1.27-alpine",
+        "python:3.12-slim",
+        "postgres:16-alpine",
+        "redis:7-alpine"
+    )
+
+    foreach ($image in $baseImages) {
+        $pulled = Invoke-DockerWithRetry @("pull", $image) "Pulling base image $image" 3
+        if (-not $pulled) {
+            if (Test-LocalDockerImage $image) {
+                Write-Host "Could not refresh $image from Docker Hub, using local cached image."
+                continue
+            }
+            Stop-WithMessage "Docker could not pull $image from Docker Hub. This is usually a network/TLS timeout. Check VPN/proxy/DNS, then run .\start-docker.cmd again. If the image is already cached locally, use .\start-docker.cmd -SkipBasePull."
+        }
+    }
+}
+
 $args = @("compose", "up", "--build", "--remove-orphans")
 if ($Detached) {
     $args += "-d"
 }
 
-& docker @args
+$started = Invoke-DockerWithRetry $args "Starting docker compose" 2
+if (-not $started) {
+    Stop-WithMessage "Docker Compose failed to start the stack. If the error still mentions TLS handshake timeout, Docker Hub is not reachable from this machine right now; try again after network stabilizes or run .\start-docker.cmd -SkipBasePull when base images are cached."
+}

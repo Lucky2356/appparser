@@ -1,0 +1,16 @@
+.env
+.git
+.github
+.pytest_cache
+.runtime
+__pycache__
+*.pyc
+*.sqlite3
+*.tsbuildinfo
+
+apps/api/.env
+apps/api/.venv
+apps/web/.env.local
+apps/web/dist
+apps/web/node_modules
+node_modules

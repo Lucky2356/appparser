@@ -52,6 +52,12 @@ Run Docker with deterministic mock data:
 .\start-docker.cmd -ParserMode mock
 ```
 
+The Docker launcher pulls base images sequentially with retries to reduce transient Docker Hub TLS timeouts. If base images are already cached locally and Docker Hub is temporarily unavailable, run:
+
+```powershell
+.\start-docker.cmd -SkipBasePull
+```
+
 ## MVP features
 
 - Register, login, JWT session
