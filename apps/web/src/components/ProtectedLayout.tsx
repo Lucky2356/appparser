@@ -52,19 +52,19 @@ export function ProtectedLayout() {
   }, [token]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-screen bg-[#f4f7f6] text-slate-950 dark:bg-slate-950 dark:text-slate-100">
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 border-r border-slate-200 bg-white px-4 py-5 dark:border-slate-800 dark:bg-slate-900 lg:block">
         <div className="flex items-center gap-3 px-2">
-          <div className="grid h-10 w-10 place-items-center rounded-lg bg-teal-700 text-white">
+          <div className="grid h-10 w-10 place-items-center rounded-lg bg-teal-700 text-white shadow-sm">
             <ShoppingBag size={20} />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="font-semibold tracking-normal">Appsparcer</div>
-            <div className="text-xs text-slate-500">{user?.email}</div>
+            <div className="truncate text-xs text-slate-500">{user?.email}</div>
           </div>
         </div>
 
-        <nav className="mt-8 space-y-1">
+        <nav className="mt-8 space-y-1.5">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -73,7 +73,7 @@ export function ProtectedLayout() {
                 [
                   "flex h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition",
                   isActive
-                    ? "bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-200"
+                    ? "bg-teal-50 text-teal-800 shadow-sm dark:bg-teal-950 dark:text-teal-200"
                     : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                 ].join(" ")
               }
@@ -87,9 +87,9 @@ export function ProtectedLayout() {
           ))}
         </nav>
 
-        <div className="absolute inset-x-4 bottom-5 space-y-2">
+        <div className="absolute inset-x-4 bottom-5 space-y-2 border-t border-slate-200 pt-4 dark:border-slate-800">
           <button
-            className="flex h-10 w-full items-center justify-center gap-2 rounded-md border border-slate-200 text-sm hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+            className="secondary-button w-full"
             onClick={() => setIsDark((value) => !value)}
             type="button"
           >
@@ -97,7 +97,7 @@ export function ProtectedLayout() {
             {isDark ? "Светлая тема" : "Тёмная тема"}
           </button>
           <button
-            className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-slate-900 text-sm text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950"
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-slate-900 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-950"
             onClick={logout}
             type="button"
           >
@@ -107,7 +107,7 @@ export function ProtectedLayout() {
         </div>
       </aside>
 
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
+      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 font-semibold">
             <ShoppingBag size={20} className="text-teal-700" />
@@ -124,8 +124,8 @@ export function ProtectedLayout() {
               to={item.to}
               className={({ isActive }) =>
                 [
-                  "relative grid h-10 place-items-center rounded-md",
-                  isActive ? "bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-200" : "text-slate-500"
+                  "relative grid h-10 place-items-center rounded-md transition",
+                  isActive ? "bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-200" : "text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                 ].join(" ")
               }
               title={item.label}

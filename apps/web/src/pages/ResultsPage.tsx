@@ -1,4 +1,4 @@
-import { Download, RefreshCw } from "lucide-react";
+import { Download, PackageSearch, RefreshCw, TrendingDown } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -8,6 +8,7 @@ import { ProductCard } from "../components/ProductCard";
 import { EmptyState, ErrorState, LoadingState } from "../components/States";
 import { useAuth } from "../state/AuthContext";
 import type { Offer, ParserLog, SearchItem } from "../types";
+import { formatPrice } from "../utils/format";
 
 function logToneClass(level: ParserLog["level"]) {
   if (level === "error") {
@@ -26,6 +27,14 @@ function sourceSummary(logs: ParserLog[]) {
   );
   const blocked = marketplaces.filter((marketplace) => logs.some((log) => log.marketplace === marketplace && log.level === "error"));
   return { blocked, live };
+}
+
+function resultSummary(results: Offer[]) {
+  const prices = results.map((offer) => offer.price).filter((price) => Number.isFinite(price));
+  const minPrice = prices.length ? Math.min(...prices) : null;
+  const maxPrice = prices.length ? Math.max(...prices) : null;
+  const marketplaces = Array.from(new Set(results.map((offer) => offer.marketplace)));
+  return { marketplaces, maxPrice, minPrice };
 }
 
 export function ResultsPage() {
@@ -90,6 +99,7 @@ export function ResultsPage() {
   }
 
   const sources = sourceSummary(logs);
+  const summary = resultSummary(results);
   const hasPartialSourceErrors = Boolean(search?.status === "completed" && results.length > 0 && sources.blocked.length);
   const shouldOpenLogs = Boolean(search?.status === "failed" || (search?.status === "completed" && results.length === 0));
 
@@ -154,6 +164,41 @@ export function ResultsPage() {
 
       {isLoading ? <LoadingState label="Получаем результаты" /> : null}
       {error ? <ErrorState message={error} /> : null}
+      {!isLoading && !error && results.length ? (
+        <section className="mb-4 grid gap-3 sm:grid-cols-3">
+          <div className="surface flex items-center gap-3 p-4">
+            <div className="grid h-10 w-10 place-items-center rounded-md bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-200">
+              <PackageSearch size={19} />
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Предложения</div>
+              <div className="text-lg font-semibold">{results.length}</div>
+            </div>
+          </div>
+          <div className="surface flex items-center gap-3 p-4">
+            <div className="grid h-10 w-10 place-items-center rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-200">
+              <TrendingDown size={19} />
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Диапазон цен</div>
+              <div className="text-sm font-semibold">
+                {summary.minPrice !== null && summary.maxPrice !== null
+                  ? `${formatPrice(summary.minPrice)} - ${formatPrice(summary.maxPrice)}`
+                  : "нет данных"}
+              </div>
+            </div>
+          </div>
+          <div className="surface flex items-center gap-3 p-4">
+            <div className="grid h-10 w-10 place-items-center rounded-md bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-200">
+              <PackageSearch size={19} />
+            </div>
+            <div>
+              <div className="text-xs text-slate-500">Источники в выдаче</div>
+              <div className="text-sm font-semibold">{summary.marketplaces.join(", ")}</div>
+            </div>
+          </div>
+        </section>
+      ) : null}
       {logs.length ? (
         <details
           className="mb-4 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900"

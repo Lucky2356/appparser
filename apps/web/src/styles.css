@@ -16,24 +16,37 @@
   body {
     margin: 0;
     min-width: 320px;
-    background: #f8fafc;
+    background: #f4f7f6;
+    text-rendering: optimizeLegibility;
   }
 }
 
 @layer components {
   .input {
-    @apply h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/15 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-teal-400;
+    @apply h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-600/15 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-teal-400;
   }
 
   .primary-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-400;
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 dark:bg-teal-500 dark:text-slate-950 dark:hover:bg-teal-400;
   }
 
   .secondary-button {
-    @apply inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800;
+    @apply inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-slate-600 dark:hover:bg-slate-800;
   }
 
   .icon-button {
-    @apply grid h-10 w-10 place-items-center rounded-md border border-slate-300 bg-white text-slate-600 transition hover:border-teal-600 hover:text-teal-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-teal-400 dark:hover:text-teal-300;
+    @apply grid h-10 w-10 place-items-center rounded-md border border-slate-300 bg-white text-slate-600 shadow-sm transition hover:border-teal-600 hover:bg-teal-50 hover:text-teal-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-teal-400 dark:hover:bg-teal-950 dark:hover:text-teal-300;
+  }
+
+  .surface {
+    @apply rounded-lg border border-slate-200 bg-white shadow-soft dark:border-slate-800 dark:bg-slate-900;
+  }
+
+  .section-label {
+    @apply text-sm font-semibold text-slate-700 dark:text-slate-200;
+  }
+
+  .subtle-chip {
+    @apply inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300;
   }
 }

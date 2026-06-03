@@ -28,15 +28,15 @@ export function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen bg-slate-50 px-4 py-8 dark:bg-slate-950">
+    <main className="grid min-h-screen bg-[#f4f7f6] px-4 py-8 dark:bg-slate-950">
       <section className="m-auto w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-soft dark:border-slate-800 dark:bg-slate-900">
         <div className="mb-6 flex items-center gap-3">
-          <div className="grid h-11 w-11 place-items-center rounded-lg bg-teal-700 text-white">
+          <div className="grid h-11 w-11 place-items-center rounded-lg bg-teal-700 text-white shadow-sm">
             <ShoppingBag size={21} />
           </div>
           <div>
             <h1 className="text-xl font-semibold">Appsparcer</h1>
-            <p className="text-sm text-slate-500">Вход</p>
+            <p className="text-sm text-slate-500">Поиск выгодных предложений</p>
           </div>
         </div>
 
@@ -56,10 +56,10 @@ export function LoginPage() {
             />
           </label>
 
-          {error ? <div className="rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
+          {error ? <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div> : null}
 
           <button className="primary-button w-full" disabled={isSubmitting} type="submit">
-            Войти
+            {isSubmitting ? "Входим" : "Войти"}
             <ArrowRight size={18} />
           </button>
         </form>

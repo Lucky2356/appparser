@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { Search, SlidersHorizontal, Sparkles, Store } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -9,6 +9,8 @@ import { PageHeader } from "../components/PageHeader";
 import { ErrorState, LoadingState } from "../components/States";
 import { useAuth } from "../state/AuthContext";
 import type { Marketplace, SearchFilters } from "../types";
+
+const quickQueries = ["iphone", "ноутбук", "пылесос", "кроссовки", "кофемашина"];
 
 export function SearchPage() {
   const { token } = useAuth();
@@ -76,32 +78,57 @@ export function SearchPage() {
         <LoadingState />
       ) : (
         <form className="space-y-5" onSubmit={handleSubmit}>
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft dark:border-slate-800 dark:bg-slate-900">
+          <section className="surface p-5">
             <label className="block space-y-2">
-              <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Товар</span>
+              <span className="section-label flex items-center gap-2">
+                <Sparkles size={16} className="text-teal-700 dark:text-teal-300" />
+                Товар
+              </span>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <input
                   className="input h-12 text-base"
                   minLength={2}
+                  placeholder="Название, бренд или модель"
                   required
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                 />
                 <button className="primary-button h-12 sm:w-44" disabled={isSubmitting || !selected.length} type="submit">
                   <Search size={18} />
-                  Найти
+                  {isSubmitting ? "Ищем" : "Найти"}
                 </button>
               </div>
             </label>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {quickQueries.map((item) => (
+                <button
+                  key={item}
+                  className="subtle-chip transition hover:border-teal-300 hover:text-teal-700 dark:hover:border-teal-700 dark:hover:text-teal-200"
+                  onClick={() => setQuery(item)}
+                  type="button"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
           </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-3 text-sm font-medium text-slate-600 dark:text-slate-300">Маркетплейсы</div>
+          <section className="surface p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="section-label flex items-center gap-2">
+                <Store size={16} className="text-teal-700 dark:text-teal-300" />
+                Маркетплейсы
+              </div>
+              <div className="text-xs text-slate-500">{selected.length} выбрано</div>
+            </div>
             <MarketplaceSelector marketplaces={marketplaces} selected={selected} onChange={setSelected} />
           </section>
 
-          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-3 text-sm font-medium text-slate-600 dark:text-slate-300">Фильтры</div>
+          <section className="surface p-5">
+            <div className="mb-3 section-label flex items-center gap-2">
+              <SlidersHorizontal size={16} className="text-teal-700 dark:text-teal-300" />
+              Фильтры
+            </div>
             <FiltersPanel filters={filters} sort={sort} onChange={setFilters} onSortChange={setSort} />
           </section>
 
