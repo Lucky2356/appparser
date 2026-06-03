@@ -1,6 +1,9 @@
 param(
   [string]$OutputPath = ".runtime\ozon-storage-state.json",
-  [string]$DiagnosticsPath = ".runtime\ozon-diagnostics"
+  [string]$DiagnosticsPath = ".runtime\ozon-diagnostics",
+  [string]$ProfilePath = ".runtime\ozon-browser-profile",
+  [ValidateSet("auto", "chrome", "edge", "chromium")]
+  [string]$Browser = "auto"
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,8 +30,40 @@ $ResolvedDiagnostics = if ([System.IO.Path]::IsPathRooted($DiagnosticsPath)) {
   Join-Path $RepoRoot $DiagnosticsPath
 }
 
+$ResolvedProfile = if ([System.IO.Path]::IsPathRooted($ProfilePath)) {
+  $ProfilePath
+} else {
+  Join-Path $RepoRoot $ProfilePath
+}
+
+function Find-SystemBrowser($Name) {
+  $candidates = @()
+  if ($Name -in @("auto", "chrome")) {
+    $candidates += @(
+      "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+      "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+      "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+    )
+  }
+  if ($Name -in @("auto", "edge")) {
+    $candidates += @(
+      "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+      "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
+    )
+  }
+  foreach ($candidate in $candidates) {
+    if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+      return $candidate
+    }
+  }
+  return ""
+}
+
+$BrowserExecutable = if ($Browser -eq "chromium") { "" } else { Find-SystemBrowser $Browser }
+
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ResolvedOutput) | Out-Null
 New-Item -ItemType Directory -Force -Path $ResolvedDiagnostics | Out-Null
+New-Item -ItemType Directory -Force -Path $ResolvedProfile | Out-Null
 $env:PYTHONPATH = "$ApiDir;$ParserDir"
 
 $pythonCode = @'
@@ -45,7 +80,10 @@ from playwright.sync_api import sync_playwright
 
 output = Path(sys.argv[1]).resolve()
 diagnostics = Path(sys.argv[2]).resolve()
+profile_dir = Path(sys.argv[3]).resolve()
+browser_executable = sys.argv[4].strip()
 diagnostics.mkdir(parents=True, exist_ok=True)
+profile_dir.mkdir(parents=True, exist_ok=True)
 query = "iphone"
 user_agent = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -88,8 +126,19 @@ def write_diagnostic(name: str, details: dict, page=None, html: str | None = Non
 
 
 with sync_playwright() as playwright:
-    browser = playwright.chromium.launch(headless=False)
-    context = browser.new_context(locale="ru-RU", user_agent=user_agent)
+    launch_options = {
+        "headless": False,
+        "locale": "ru-RU",
+        "user_agent": user_agent,
+        "viewport": {"width": 1365, "height": 900},
+        "screen": {"width": 1365, "height": 900},
+    }
+    if browser_executable:
+        launch_options["executable_path"] = browser_executable
+        print(f"Using system browser: {browser_executable}")
+    else:
+        print("Using bundled Playwright Chromium")
+    context = playwright.chromium.launch_persistent_context(str(profile_dir), **launch_options)
     page = context.new_page()
     search_url = f"https://www.ozon.ru/search/?text={quote_plus(query)}&from_global=true"
     composer_url = (
@@ -106,7 +155,7 @@ with sync_playwright() as playwright:
             print("If needed, sign in or finish the access check. Then return here and press Enter.")
             command = input("Press Enter to validate the Ozon session, or type q to cancel: ").strip().lower()
             if command in {"q", "quit", "exit"}:
-                browser.close()
+                context.close()
                 raise SystemExit(1)
         except PlaywrightError as exc:
             print("")
@@ -118,7 +167,7 @@ with sync_playwright() as playwright:
                 page=page,
             )
             print(f"Diagnostic saved near: {diagnostic}")
-            browser.close()
+            context.close()
             raise SystemExit(1)
 
         try:
@@ -146,7 +195,7 @@ with sync_playwright() as playwright:
                 page=page,
             )
             print(f"Diagnostic saved near: {diagnostic}")
-            browser.close()
+            context.close()
             raise SystemExit(1)
 
         blocked = status_code in {403, 429} or composer_status in {403, 429} or is_antibot_page(html)
@@ -156,7 +205,7 @@ with sync_playwright() as playwright:
                 "Validated Ozon session: "
                 f"page={status_code}, composer={composer_status}, products={product_links}, cookies={cookie_count}"
             )
-            browser.close()
+            context.close()
             break
 
         print(
@@ -184,7 +233,7 @@ with sync_playwright() as playwright:
 print(f"Saved Ozon storage state: {output}")
 '@
 
-& $Python -c $pythonCode $ResolvedOutput $ResolvedDiagnostics
+& $Python -c $pythonCode $ResolvedOutput $ResolvedDiagnostics $ResolvedProfile $BrowserExecutable
 
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE

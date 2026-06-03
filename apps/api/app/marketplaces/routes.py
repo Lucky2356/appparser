@@ -26,9 +26,10 @@ def list_marketplaces() -> list[MarketplaceRead]:
     is_mock = source_mode == "mock"
     browser_fallback_enabled = os.getenv("PARSER_BROWSER_FALLBACK", "true").lower() not in {"0", "false", "no"}
     proxy_configured = _has_env_value("PARSER_HTTP_PROXY")
-    ozon_access_configured = proxy_configured or _has_env_value("OZON_COOKIES") or _env_file_exists(
-        "OZON_COOKIES_FILE",
-        "OZON_STORAGE_STATE_FILE",
+    ozon_access_configured = (
+        proxy_configured
+        or _has_env_value("OZON_COOKIES", "OZON_EXTERNAL_SEARCH_URL")
+        or _env_file_exists("OZON_COOKIES_FILE", "OZON_STORAGE_STATE_FILE")
     )
     wildberries_access_configured = (
         proxy_configured

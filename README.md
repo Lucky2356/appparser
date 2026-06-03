@@ -95,7 +95,7 @@ Parser modes:
 - `PARSER_MODE=hybrid`: tries live Ozon/Wildberries collection first, then falls back to deterministic demo data if a source rate-limits, blocks, or returns an unexpected page.
 - `PARSER_MODE=mock`: deterministic local data for tests and development.
 
-Live collection uses `PARSER_HTTP_TIMEOUT_SECONDS`, `PARSER_HTTP_PROXY`, `PARSER_USER_AGENT`, `PARSER_BROWSER_FALLBACK`, `OZON_COOKIES`, `OZON_COOKIES_FILE`, `OZON_STORAGE_STATE_FILE`, `WILDBERRIES_COOKIES`, `WILDBERRIES_COOKIES_FILE`, `WILDBERRIES_STORAGE_STATE_FILE`, and `WILDBERRIES_DEST` from the environment. Wildberries can fall back to a Chromium-backed request when regular HTTP is rate-limited. Ozon can still return an anti-bot 403 without valid session cookies/storage state/proxy access, so the app keeps source status visible in result logs and never treats mock data as real results.
+Live collection uses `PARSER_HTTP_TIMEOUT_SECONDS`, `PARSER_HTTP_PROXY`, `PARSER_USER_AGENT`, `PARSER_BROWSER_FALLBACK`, `OZON_COOKIES`, `OZON_COOKIES_FILE`, `OZON_STORAGE_STATE_FILE`, `OZON_EXTERNAL_SEARCH_URL`, `OZON_EXTERNAL_SEARCH_HEADERS`, `WILDBERRIES_COOKIES`, `WILDBERRIES_COOKIES_FILE`, `WILDBERRIES_STORAGE_STATE_FILE`, and `WILDBERRIES_DEST` from the environment. Wildberries can fall back to a Chromium-backed request when regular HTTP is rate-limited. Ozon can still return an anti-bot 403 without valid session cookies/storage state/proxy access, so the app keeps source status visible in result logs and never treats mock data as real results.
 
 Product cards load remote marketplace images through the API image proxy (`/images/proxy`). The proxy is restricted to known Ozon/Wildberries image hosts and keeps the original image URL stored in the database.
 
@@ -105,11 +105,20 @@ For Ozon, the most stable local setup is a saved browser session:
 .\scripts\save-ozon-session.ps1
 ```
 
-The script validates the opened browser session before saving it. Do not press Enter while Ozon still shows a captcha, access check, or empty page; wait until real product cards are visible. After a valid session is saved, the script writes `OZON_STORAGE_STATE_FILE=/app/.runtime/ozon-storage-state.json` to `.env`. The compose file mounts `.runtime` into the API and worker containers.
+The script uses installed Chrome or Edge when available, keeps a dedicated browser profile in `.runtime/ozon-browser-profile`, and validates the opened browser session before saving it. Do not press Enter while Ozon still shows a captcha, access check, or empty page; wait until real product cards are visible. After a valid session is saved, the script writes `OZON_STORAGE_STATE_FILE=/app/.runtime/ozon-storage-state.json` to `.env`. The compose file mounts `.runtime` into the API and worker containers.
 
 If Ozon says the opened browser or network is using VPN/proxy and never shows product cards, the local live Ozon scraper cannot use that route. In that case use a legitimate Ozon data source/API access or a network Ozon accepts; the app will keep Ozon errors visible instead of silently showing fake data.
 
 When validation fails, diagnostic files are written to `.runtime/ozon-diagnostics/` so you can inspect the blocked page without exposing cookies in logs.
+
+If direct Ozon access is blocked, configure a legitimate external product search provider:
+
+```env
+OZON_EXTERNAL_SEARCH_URL=https://provider.example/search?q={query}&limit={limit}
+OZON_EXTERNAL_SEARCH_HEADERS={"Authorization":"Bearer token"}
+```
+
+The provider response can be `{ "offers": [...] }`, `{ "results": [...] }`, `{ "items": [...] }`, or `{ "organic_results": [...] }`. Each item should include an Ozon product URL plus title and price fields, for example `productUrl`, `title`, `price`, and optionally `imageUrl`, `rating`, `reviewsCount`.
 
 You can verify Ozon access without starting the full stack:
 

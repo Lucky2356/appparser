@@ -87,6 +87,17 @@ class OzonHttpAdapter(MarketplaceAdapter):
             except AdapterUnavailableError as exc:
                 errors.append(str(exc))
 
+        if _external_search_configured():
+            try:
+                payload = _fetch_external_search_payload(params.query)
+                offers = _extract_external_search_offers(payload, params)
+                filtered = _apply_filters(offers, params)
+                if filtered:
+                    return filtered[:40]
+                errors.append("external search provider returned no Ozon product cards")
+            except AdapterUnavailableError as exc:
+                errors.append(str(exc))
+
         raise AdapterUnavailableError(self.marketplace_name, f"Ozon endpoint unavailable: {'; '.join(errors[:4])}")
 
     def _fetch_composer_payload(self, query: str) -> dict[str, Any]:
@@ -179,6 +190,51 @@ def _ozon_search_path(query: str) -> str:
 
 def _http_proxy() -> str | None:
     return os.getenv("PARSER_HTTP_PROXY") or None
+
+
+def _external_search_configured() -> bool:
+    return bool(os.getenv("OZON_EXTERNAL_SEARCH_URL", "").strip())
+
+
+def _fetch_external_search_payload(query: str) -> Any:
+    timeout = float(os.getenv("PARSER_HTTP_TIMEOUT_SECONDS", "8"))
+    url = _external_search_url(query)
+    headers = _external_search_headers()
+    try:
+        with httpx.Client(follow_redirects=True, timeout=timeout, proxy=_http_proxy()) as client:
+            response = client.get(url, headers=headers)
+            response.raise_for_status()
+            return response.json()
+    except httpx.HTTPStatusError as exc:
+        raise AdapterUnavailableError("ozon", f"external search provider HTTP {exc.response.status_code}") from exc
+    except (httpx.HTTPError, ValueError) as exc:
+        raise AdapterUnavailableError("ozon", f"external search provider {exc.__class__.__name__}") from exc
+
+
+def _external_search_url(query: str) -> str:
+    template = os.getenv("OZON_EXTERNAL_SEARCH_URL", "").strip()
+    if not template:
+        raise AdapterUnavailableError("ozon", "external search provider is not configured")
+    encoded_query = quote_plus(query.strip())
+    if "{query}" in template or "{limit}" in template:
+        return template.replace("{query}", encoded_query).replace("{limit}", "40")
+    separator = "&" if "?" in template else "?"
+    return f"{template}{separator}query={encoded_query}&limit=40"
+
+
+def _external_search_headers() -> dict[str, str]:
+    raw = os.getenv("OZON_EXTERNAL_SEARCH_HEADERS", "").strip()
+    if not raw:
+        return {"Accept": "application/json"}
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise AdapterUnavailableError("ozon", "external search headers must be JSON") from exc
+    if not isinstance(payload, dict):
+        raise AdapterUnavailableError("ozon", "external search headers must be a JSON object")
+    headers = {"Accept": "application/json"}
+    headers.update({str(key): str(value) for key, value in payload.items() if value is not None})
+    return headers
 
 
 def _browser_fallback_enabled() -> bool:
@@ -314,6 +370,127 @@ def _extract_composer_offers(payload: dict[str, Any], params: SearchParams) -> l
             )
         )
     return offers
+
+
+def _extract_external_search_offers(payload: Any, params: SearchParams) -> list[MarketplaceOffer]:
+    offers: list[MarketplaceOffer] = []
+    seen: set[str] = set()
+
+    for item in _external_search_items(payload):
+        offer = _offer_from_external_search_item(item)
+        if not offer or offer.external_id in seen:
+            continue
+        seen.add(offer.external_id)
+        offers.append(offer)
+    return offers
+
+
+def _external_search_items(payload: Any) -> list[dict[str, Any]]:
+    if isinstance(payload, list):
+        return [item for item in payload if isinstance(item, dict)]
+    if not isinstance(payload, dict):
+        return []
+
+    candidates: list[dict[str, Any]] = []
+    for key in ("offers", "results", "items", "organic_results"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            candidates.extend(item for item in value if isinstance(item, dict))
+
+    data = payload.get("data")
+    if isinstance(data, dict):
+        candidates.extend(_external_search_items(data))
+    elif isinstance(data, list):
+        candidates.extend(item for item in data if isinstance(item, dict))
+
+    tasks = payload.get("tasks")
+    if isinstance(tasks, list):
+        for task in tasks:
+            if isinstance(task, dict):
+                candidates.extend(_external_search_items(task))
+
+    result = payload.get("result")
+    if isinstance(result, list):
+        for entry in result:
+            if isinstance(entry, dict):
+                candidates.extend(_external_search_items(entry))
+    elif isinstance(result, dict):
+        candidates.extend(_external_search_items(result))
+
+    return candidates
+
+
+def _offer_from_external_search_item(item: dict[str, Any]) -> MarketplaceOffer | None:
+    product_url = _external_item_url(item)
+    if not product_url:
+        return None
+
+    title = _first_text(
+        item.get("title")
+        or item.get("name")
+        or item.get("productTitle")
+        or item.get("product_title")
+    )
+    text = _external_item_text(item)
+    price = (
+        _as_price(item.get("price"))
+        or _as_price(item.get("priceValue"))
+        or _as_price(item.get("price_value"))
+        or _as_price(item.get("currentPrice"))
+        or _find_price(text)
+    )
+    if not title or not price:
+        return None
+
+    external_key = _ozon_external_key(product_url) or _stable_external_key(product_url, title)
+    return MarketplaceOffer(
+        external_id=f"ozon-{external_key}",
+        marketplace="ozon",
+        title=title[:180],
+        price=price,
+        old_price=_as_price(item.get("oldPrice") or item.get("old_price")),
+        discount_percent=_as_int(item.get("discountPercent") or item.get("discount_percent")),
+        rating=_as_float(item.get("rating")) or _find_rating(text),
+        reviews_count=_as_int(item.get("reviewsCount") or item.get("reviews_count")) or _find_reviews_count(text),
+        seller_name=_first_text(item.get("sellerName") or item.get("seller_name")),
+        seller_rating=_as_float(item.get("sellerRating") or item.get("seller_rating")),
+        image_url=_external_item_image(item),
+        product_url=product_url,
+        availability=True,
+        delivery_info=_first_text(item.get("deliveryInfo") or item.get("delivery_info")) or "Уточняется на Ozon",
+        collected_at=datetime.now(timezone.utc),
+    )
+
+
+def _external_item_url(item: dict[str, Any]) -> str | None:
+    for key in ("productUrl", "product_url", "link", "url"):
+        value = _first_text(item.get(key))
+        if value and "ozon.ru" in value and "/product/" in value:
+            return urljoin(OZON_BASE_URL, value.split("?")[0])
+    return None
+
+
+def _external_item_image(item: dict[str, Any]) -> str | None:
+    for key in ("imageUrl", "image_url", "image", "thumbnail", "thumbnailUrl", "thumbnail_url"):
+        value = _first_text(item.get(key))
+        if value and value.startswith(("http://", "https://")):
+            return value
+    images = item.get("images")
+    if isinstance(images, list):
+        for image in images:
+            value = _first_text(image)
+            if value and value.startswith(("http://", "https://")):
+                return value
+    return None
+
+
+def _external_item_text(item: dict[str, Any]) -> str:
+    values = []
+    for key in ("snippet", "description", "text", "title", "name", "price"):
+        value = _first_text(item.get(key))
+        if value:
+            values.append(value)
+    return " ".join(values)
 
 
 def _walk_composer_nodes(node: Any) -> list[dict[str, Any]]:

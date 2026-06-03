@@ -42,7 +42,7 @@ function Resolve-LocalEnvPath($Value) {
 }
 
 $dotEnv = Read-DotEnv (Join-Path $RepoRoot ".env")
-foreach ($key in @("PARSER_HTTP_PROXY", "PARSER_USER_AGENT", "PARSER_BROWSER_FALLBACK", "OZON_COOKIES", "OZON_COOKIES_FILE", "OZON_STORAGE_STATE_FILE")) {
+foreach ($key in @("PARSER_HTTP_PROXY", "PARSER_USER_AGENT", "PARSER_BROWSER_FALLBACK", "OZON_COOKIES", "OZON_COOKIES_FILE", "OZON_STORAGE_STATE_FILE", "OZON_EXTERNAL_SEARCH_URL", "OZON_EXTERNAL_SEARCH_HEADERS")) {
   if ($dotEnv.ContainsKey($key)) {
     [Environment]::SetEnvironmentVariable($key, [string]$dotEnv[$key], "Process")
   }
@@ -73,6 +73,7 @@ query = sys.argv[1]
 state_path = os.getenv("OZON_STORAGE_STATE_FILE", "").strip()
 cookies = os.getenv("OZON_COOKIES", "").strip()
 proxy = os.getenv("PARSER_HTTP_PROXY", "").strip()
+external = os.getenv("OZON_EXTERNAL_SEARCH_URL", "").strip()
 state_exists = bool(state_path and Path(state_path).is_file())
 cookie_count = 0
 if state_exists:
@@ -88,6 +89,7 @@ print(
     f", storageCookies={cookie_count}"
     f", rawCookies={'yes' if bool(cookies) else 'no'}"
     f", proxy={'yes' if bool(proxy) else 'no'}"
+    f", externalProvider={'yes' if bool(external) else 'no'}"
 )
 
 adapter = OzonAdapter()

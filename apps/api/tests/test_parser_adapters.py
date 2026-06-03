@@ -2,7 +2,7 @@ import httpx
 import pytest
 
 from app.searches.service import _should_fail_real_search
-from market_parser.adapters.ozon import OzonAdapter, OzonHttpAdapter
+from market_parser.adapters.ozon import OzonAdapter, OzonHttpAdapter, _extract_external_search_offers
 from market_parser.adapters import wildberries as wildberries_module
 from market_parser.adapters.wildberries import WildberriesAdapter, _extract_products, _wildberries_image_url
 from market_parser.cache import OFFER_CACHE
@@ -191,6 +191,29 @@ def test_ozon_http_adapter_extracts_composer_products():
     assert offers[0].price == 51990
     assert offers[0].rating == 4.9
     assert offers[0].reviews_count == 777
+
+
+def test_ozon_external_search_provider_normalizes_offers():
+    payload = {
+        "offers": [
+            {
+                "title": "Кофемашина Ozon Real",
+                "price": "21 990 ₽",
+                "productUrl": "https://www.ozon.ru/product/kofemashina-real-123456789/",
+                "imageUrl": "https://cdn1.ozone.ru/s3/product.webp",
+                "snippet": "4,8 120 отзывов",
+            }
+        ]
+    }
+
+    offers = _extract_external_search_offers(payload, SearchParams(query="кофемашина", marketplaces=["ozon"]))
+
+    assert len(offers) == 1
+    assert offers[0].external_id == "ozon-123456789"
+    assert offers[0].price == 21990
+    assert offers[0].rating == 4.8
+    assert offers[0].reviews_count == 120
+    assert offers[0].image_url == "https://cdn1.ozone.ru/s3/product.webp"
 
 
 def test_real_search_fails_when_live_sources_return_only_errors(monkeypatch: pytest.MonkeyPatch):
