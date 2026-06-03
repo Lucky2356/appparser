@@ -1,5 +1,7 @@
 import { ExternalLink, Heart, MessageSquareText, Star, Target, Truck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
+import { imageProxyUrl } from "../api/client";
 import type { Favorite, Offer } from "../types";
 import { formatPrice } from "../utils/format";
 import { ScoreBadge } from "./ScoreBadge";
@@ -17,12 +19,24 @@ function isOffer(value: Offer | Favorite): value is Offer {
 
 export function ProductCard({ offer, onFavorite, onTrack, favoriteLabel = "В избранное" }: Props) {
   const fullOffer = isOffer(offer) ? offer : null;
+  const [imageFailed, setImageFailed] = useState(false);
+  const imageSrc = useMemo(() => (offer.imageUrl ? imageProxyUrl(offer.imageUrl) : null), [offer.imageUrl]);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [offer.imageUrl]);
 
   return (
     <article className="grid gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-soft transition hover:border-teal-200 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-teal-900 md:grid-cols-[156px_1fr_auto]">
       <div className="aspect-[4/3] overflow-hidden rounded-md border border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
-        {offer.imageUrl ? (
-          <img alt="" className="h-full w-full object-contain p-2" src={offer.imageUrl} />
+        {imageSrc && !imageFailed ? (
+          <img
+            alt={offer.title}
+            className="h-full w-full object-contain p-2"
+            loading="lazy"
+            src={imageSrc}
+            onError={() => setImageFailed(true)}
+          />
         ) : (
           <div className="grid h-full place-items-center text-xs text-slate-400">нет фото</div>
         )}

@@ -35,6 +35,8 @@ The current parser layer already includes in-process TTL caching and per-marketp
 
 `PARSER_MODE=real` disables fallback for adapters that implement live collection. If all requested live sources fail and no offers are collected, the search is marked failed instead of completed with mock data. `PARSER_MODE=hybrid` enables best-effort HTTP collection and falls back to mock data if the source rate-limits, blocks, or returns an unexpected page. `PARSER_MODE=mock` is for tests and local demos. Result logs include `Adapter source: mock/live/fallback/failed` so operators can see what happened for each marketplace.
 
+Marketplace images stay as original CDN URLs in persisted offer records. The web client renders them through the API image proxy, which validates source hosts against a small allowlist and adds cache headers. This keeps UI images stable without turning the API into a general-purpose URL fetcher.
+
 ## Scoring
 
 Offers are ranked by weighted factors:

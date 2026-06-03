@@ -3,7 +3,8 @@ import pytest
 
 from app.searches.service import _should_fail_real_search
 from market_parser.adapters.ozon import OzonAdapter, OzonHttpAdapter
-from market_parser.adapters.wildberries import WildberriesAdapter, _extract_products
+from market_parser.adapters import wildberries as wildberries_module
+from market_parser.adapters.wildberries import WildberriesAdapter, _extract_products, _wildberries_image_url
 from market_parser.cache import OFFER_CACHE
 from market_parser.errors import AdapterUnavailableError
 from market_parser.models import MarketplaceOffer, ParserLogEntry, SearchParams
@@ -89,6 +90,40 @@ def test_wildberries_extracts_root_products_payload():
     product = {"id": 348734774, "name": "iPhone 16 256GB"}
 
     assert _extract_products({"products": [product]}) == [product]
+
+
+def test_wildberries_image_url_uses_new_basket_ranges():
+    image_url = _wildberries_image_url(348734774)
+
+    assert image_url == "https://basket-21.wbbasket.ru/vol3487/part348734/348734774/images/big/1.webp"
+
+
+def test_wildberries_rate_limited_browser_error_is_reported(monkeypatch: pytest.MonkeyPatch):
+    request = httpx.Request("GET", "https://search.wb.ru/search")
+
+    class StubClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def get(self, url: str):  # noqa: ARG002
+            return httpx.Response(429, request=request)
+
+    def fail_browser(url: str, timeout: float):  # noqa: ARG001
+        raise AdapterUnavailableError("wildberries", "blocked by browser source")
+
+    monkeypatch.setenv("PARSER_BROWSER_FALLBACK", "true")
+    monkeypatch.setenv("PARSER_WB_429_RETRIES", "0")
+    monkeypatch.setattr(wildberries_module.httpx, "Client", lambda **kwargs: StubClient())
+    monkeypatch.setattr(wildberries_module, "_wildberries_search_urls", lambda query: [("v-test", "https://search.wb.ru/search")])
+    monkeypatch.setattr(wildberries_module, "_fetch_payload_with_browser", fail_browser)
+
+    with pytest.raises(AdapterUnavailableError) as exc:
+        wildberries_module.WildberriesHttpAdapter().search_products(SearchParams(query="phone", marketplaces=["wildberries"]))
+
+    assert "browser blocked by browser source" in str(exc.value)
 
 
 def test_ozon_http_adapter_extracts_jsonld_products():

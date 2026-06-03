@@ -8,6 +8,7 @@ from urllib.parse import quote_plus
 
 import httpx
 from market_parser.adapters.base import MarketplaceAdapter
+from market_parser.adapters.cookies import cookie_header_from_sources, storage_state_path
 from market_parser.adapters.mock_base import BaseMockMarketplaceAdapter
 from market_parser.adapters.runtime import AdapterRuntime, RuntimeAwareAdapter
 from market_parser.errors import AdapterUnavailableError
@@ -46,7 +47,7 @@ class WildberriesHttpAdapter(MarketplaceAdapter):
                             try:
                                 payload = _fetch_payload_with_browser(url, timeout)
                             except AdapterUnavailableError as exc:
-                                errors.append(f"{version}: rate limited after retry; browser {exc.message}")
+                                errors.append(f"{version}: rate limited after retry; browser {str(exc)}")
                                 continue
                         else:
                             errors.append(f"{version}: rate limited after retry")
@@ -164,7 +165,12 @@ def _wildberries_headers() -> dict[str, str]:
             "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
         ),
     }
-    cookies = os.getenv("WILDBERRIES_COOKIES", "").strip()
+    cookies = cookie_header_from_sources(
+        "WILDBERRIES_COOKIES",
+        "WILDBERRIES_COOKIES_FILE",
+        "WILDBERRIES_STORAGE_STATE_FILE",
+        "wildberries.ru",
+    )
     if cookies:
         headers["Cookie"] = cookies
     return headers
@@ -229,28 +235,36 @@ def _fetch_payload_with_browser(url: str, timeout: float) -> dict:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
             try:
-                page = browser.new_page(
-                    extra_http_headers=_wildberries_browser_headers(),
-                    locale="ru-RU",
-                    user_agent=_wildberries_headers()["User-Agent"],
-                )
-                status_code = 0
-                body_text = ""
-                for attempt in range(_browser_rate_limit_retries() + 1):
-                    response = page.goto(url, wait_until="domcontentloaded", timeout=max(5000, timeout * 1000))
-                    status_code = response.status if response else 0
-                    body_text = page.locator("body").inner_text(timeout=5000)
-                    if status_code != 429 or attempt >= _browser_rate_limit_retries():
-                        break
-                    time.sleep(_browser_rate_limit_delay())
-                if status_code in {403, 429}:
-                    raise AdapterUnavailableError("wildberries", f"browser endpoint HTTP {status_code}")
-                if status_code >= 400:
-                    raise AdapterUnavailableError("wildberries", f"browser endpoint HTTP {status_code}")
-                payload = json.loads(body_text)
-                if not isinstance(payload, dict):
-                    raise AdapterUnavailableError("wildberries", "browser endpoint returned unexpected payload")
-                return payload
+                context_options = {
+                    "extra_http_headers": _wildberries_browser_headers(),
+                    "locale": "ru-RU",
+                    "user_agent": _wildberries_headers()["User-Agent"],
+                }
+                state_path = storage_state_path("WILDBERRIES_STORAGE_STATE_FILE")
+                if state_path:
+                    context_options["storage_state"] = state_path
+                context = browser.new_context(**context_options)
+                try:
+                    page = context.new_page()
+                    status_code = 0
+                    body_text = ""
+                    for attempt in range(_browser_rate_limit_retries() + 1):
+                        response = page.goto(url, wait_until="domcontentloaded", timeout=max(5000, timeout * 1000))
+                        status_code = response.status if response else 0
+                        body_text = page.locator("body").inner_text(timeout=5000)
+                        if status_code != 429 or attempt >= _browser_rate_limit_retries():
+                            break
+                        time.sleep(_browser_rate_limit_delay())
+                    if status_code in {403, 429}:
+                        raise AdapterUnavailableError("wildberries", f"browser endpoint HTTP {status_code}")
+                    if status_code >= 400:
+                        raise AdapterUnavailableError("wildberries", f"browser endpoint HTTP {status_code}")
+                    payload = json.loads(body_text)
+                    if not isinstance(payload, dict):
+                        raise AdapterUnavailableError("wildberries", "browser endpoint returned unexpected payload")
+                    return payload
+                finally:
+                    context.close()
             finally:
                 browser.close()
     except json.JSONDecodeError as exc:
@@ -316,7 +330,7 @@ def _wildberries_basket(vol: int) -> str:
     for max_vol, basket in ranges:
         if vol <= max_vol:
             return basket
-    return "16"
+    return f"{16 + max(0, (vol - 2406) // 216):02d}"
 
 
 def _compact_runtime_detail(detail: str, limit: int = 160) -> str:

@@ -24,9 +24,17 @@ def list_marketplaces() -> list[MarketplaceRead]:
     source_mode = os.getenv("PARSER_MODE", "mock").lower()
     is_mock = source_mode == "mock"
     browser_fallback_enabled = os.getenv("PARSER_BROWSER_FALLBACK", "true").lower() not in {"0", "false", "no"}
-    proxy_configured = bool(os.getenv("PARSER_HTTP_PROXY", "").strip())
-    ozon_access_configured = proxy_configured or bool(os.getenv("OZON_COOKIES", "").strip())
-    wildberries_access_configured = proxy_configured or browser_fallback_enabled or bool(os.getenv("WILDBERRIES_COOKIES", "").strip())
+    proxy_configured = _has_env_value("PARSER_HTTP_PROXY")
+    ozon_access_configured = proxy_configured or _has_env_value(
+        "OZON_COOKIES",
+        "OZON_COOKIES_FILE",
+        "OZON_STORAGE_STATE_FILE",
+    )
+    wildberries_access_configured = (
+        proxy_configured
+        or browser_fallback_enabled
+        or _has_env_value("WILDBERRIES_COOKIES", "WILDBERRIES_COOKIES_FILE", "WILDBERRIES_STORAGE_STATE_FILE")
+    )
     return [
         MarketplaceRead(
             id="ozon",
@@ -39,7 +47,7 @@ def list_marketplaces() -> list[MarketplaceRead]:
             status_note=(
                 "configured"
                 if is_mock or source_mode == "hybrid" or ozon_access_configured
-                else "requires cookies or proxy for stable real access"
+                else "requires Ozon session cookies, storage state, or proxy for stable real access"
             ),
         ),
         MarketplaceRead(
@@ -53,3 +61,7 @@ def list_marketplaces() -> list[MarketplaceRead]:
             status_note="browser fallback enabled" if browser_fallback_enabled and not is_mock else "configured",
         ),
     ]
+
+
+def _has_env_value(*names: str) -> bool:
+    return any(bool(os.getenv(name, "").strip()) for name in names)

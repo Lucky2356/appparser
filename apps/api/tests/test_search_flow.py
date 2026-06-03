@@ -22,6 +22,7 @@ def test_search_results_history_and_favorites(client: TestClient, auth_headers: 
     assert len(payload["results"]) > 0
     assert payload["results"][0]["score"] > 0
     assert payload["results"][0]["scoreReasons"]
+    assert payload["results"][0]["imageUrl"]
 
     history_response = client.get("/search/history", headers=auth_headers)
     assert history_response.status_code == 200

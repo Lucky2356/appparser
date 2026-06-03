@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.db.base import Base
 from app.db.session import engine
 from app.favorites.routes import router as favorites_router
+from app.images.routes import router as images_router
 from app.marketplaces.routes import router as marketplaces_router
 from app.notifications.routes import router as notifications_router
 from app.searches.routes import router as searches_router
@@ -39,6 +40,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(auth_router)
+    app.include_router(images_router)
     app.include_router(marketplaces_router)
     app.include_router(notifications_router)
     app.include_router(searches_router)

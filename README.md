@@ -89,7 +89,17 @@ Parser modes:
 - `PARSER_MODE=hybrid`: tries live Ozon/Wildberries collection first, then falls back to deterministic demo data if a source rate-limits, blocks, or returns an unexpected page.
 - `PARSER_MODE=mock`: deterministic local data for tests and development.
 
-Live collection uses `PARSER_HTTP_TIMEOUT_SECONDS`, `PARSER_HTTP_PROXY`, `PARSER_USER_AGENT`, `PARSER_BROWSER_FALLBACK`, `OZON_COOKIES`, `WILDBERRIES_COOKIES`, and `WILDBERRIES_DEST` from the environment. Wildberries can fall back to a Chromium-backed request when regular HTTP is rate-limited. Ozon can still return an anti-bot 403 without valid cookies/proxy access, so the app keeps source status visible in result logs and never treats mock data as real results.
+Live collection uses `PARSER_HTTP_TIMEOUT_SECONDS`, `PARSER_HTTP_PROXY`, `PARSER_USER_AGENT`, `PARSER_BROWSER_FALLBACK`, `OZON_COOKIES`, `OZON_COOKIES_FILE`, `OZON_STORAGE_STATE_FILE`, `WILDBERRIES_COOKIES`, `WILDBERRIES_COOKIES_FILE`, `WILDBERRIES_STORAGE_STATE_FILE`, and `WILDBERRIES_DEST` from the environment. Wildberries can fall back to a Chromium-backed request when regular HTTP is rate-limited. Ozon can still return an anti-bot 403 without valid session cookies/storage state/proxy access, so the app keeps source status visible in result logs and never treats mock data as real results.
+
+Product cards load remote marketplace images through the API image proxy (`/images/proxy`). The proxy is restricted to known Ozon/Wildberries image hosts and keeps the original image URL stored in the database.
+
+For Ozon, the most stable local setup is a saved browser session:
+
+```powershell
+.\scripts\save-ozon-session.ps1
+```
+
+Then set `OZON_STORAGE_STATE_FILE=/app/.runtime/ozon-storage-state.json` in `.env` before starting Docker. The compose file mounts `.runtime` into the API and worker containers.
 
 Backend:
 

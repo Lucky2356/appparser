@@ -16,6 +16,11 @@ import type {
 
 const API_URL = import.meta.env.VITE_API_URL ?? "/api";
 
+export function imageProxyUrl(url: string) {
+  const params = new URLSearchParams({ url });
+  return `${API_URL}/images/proxy?${params.toString()}`;
+}
+
 type RequestOptions = RequestInit & {
   token?: string | null;
 };

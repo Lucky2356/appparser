@@ -12,6 +12,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from market_parser.adapters.base import MarketplaceAdapter
+from market_parser.adapters.cookies import cookie_header_from_sources, storage_state_path
 from market_parser.adapters.mock_base import BaseMockMarketplaceAdapter
 from market_parser.adapters.runtime import AdapterRuntime, RuntimeAwareAdapter
 from market_parser.errors import AdapterUnavailableError
@@ -166,7 +167,7 @@ def _ozon_headers() -> dict[str, str]:
             "(KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
         ),
     }
-    cookies = os.getenv("OZON_COOKIES", "").strip()
+    cookies = cookie_header_from_sources("OZON_COOKIES", "OZON_COOKIES_FILE", "OZON_STORAGE_STATE_FILE", "ozon.ru")
     if cookies:
         headers["Cookie"] = cookies
     return headers
@@ -214,27 +215,35 @@ def _fetch_search_page_with_browser(query: str) -> str:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(**launch_options)
             try:
-                page = browser.new_page(
-                    extra_http_headers=_ozon_browser_headers(),
-                    locale="ru-RU",
-                    user_agent=_ozon_headers()["User-Agent"],
-                )
-                response = page.goto(
-                    f"{OZON_BASE_URL}{_ozon_search_path(query)}",
-                    wait_until="domcontentloaded",
-                    timeout=max(5000, timeout_ms),
-                )
+                context_options = {
+                    "extra_http_headers": _ozon_browser_headers(),
+                    "locale": "ru-RU",
+                    "user_agent": _ozon_headers()["User-Agent"],
+                }
+                state_path = storage_state_path("OZON_STORAGE_STATE_FILE")
+                if state_path:
+                    context_options["storage_state"] = state_path
+                context = browser.new_context(**context_options)
                 try:
-                    page.wait_for_load_state("networkidle", timeout=5000)
-                except PlaywrightTimeoutError:
-                    pass
-                status_code = response.status if response else 0
-                html = page.content()
-                if status_code in {403, 429} or _is_antibot_page(html):
-                    raise AdapterUnavailableError("ozon", f"browser endpoint HTTP {status_code}, anti-bot challenge")
-                if status_code >= 400:
-                    raise AdapterUnavailableError("ozon", f"browser endpoint HTTP {status_code}")
-                return html
+                    page = context.new_page()
+                    response = page.goto(
+                        f"{OZON_BASE_URL}{_ozon_search_path(query)}",
+                        wait_until="domcontentloaded",
+                        timeout=max(5000, timeout_ms),
+                    )
+                    try:
+                        page.wait_for_load_state("networkidle", timeout=5000)
+                    except PlaywrightTimeoutError:
+                        pass
+                    status_code = response.status if response else 0
+                    html = page.content()
+                    if status_code in {403, 429} or _is_antibot_page(html):
+                        raise AdapterUnavailableError("ozon", f"browser endpoint HTTP {status_code}, anti-bot challenge")
+                    if status_code >= 400:
+                        raise AdapterUnavailableError("ozon", f"browser endpoint HTTP {status_code}")
+                    return html
+                finally:
+                    context.close()
             finally:
                 browser.close()
     except PlaywrightError as exc:

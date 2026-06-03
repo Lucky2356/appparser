@@ -81,3 +81,9 @@ Create search:
 
 Response items include `isMock`, `sourceMode`, `accessConfigured`, `browserFallbackEnabled`, and `statusNote`.
 `sourceMode` mirrors `PARSER_MODE` (`real`, `hybrid`, or `mock`). Access fields are safe booleans/notes only; cookie, proxy, and token values are never returned.
+
+## Images
+
+- `GET /images/proxy?url=...`
+
+Proxies product images from an allowlist of Ozon/Wildberries CDN hosts. The frontend uses it to avoid broken hotlinked marketplace images while keeping original image URLs in offer, favorite, and tracking payloads.
