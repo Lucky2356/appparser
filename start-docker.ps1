@@ -84,6 +84,18 @@ Set-EnvValue "PARSER_BROWSER_429_DELAY_SECONDS" "10"
 Set-EnvValue "PARSER_WB_429_RETRIES" "1"
 Set-EnvValue "PARSER_WB_429_DELAY_SECONDS" "10"
 
+$defaultOzonStatePath = Join-Path $root ".runtime\ozon-storage-state.json"
+if ((Test-Path -LiteralPath $defaultOzonStatePath) -and $ParserMode -eq "real") {
+    $currentOzonState = (Get-Content -LiteralPath ".env" -ErrorAction SilentlyContinue |
+        Where-Object { $_ -match "^OZON_STORAGE_STATE_FILE=" } |
+        Select-Object -First 1)
+    $currentOzonStateValue = if ($currentOzonState) { ($currentOzonState -split "=", 2)[1].Trim() } else { "" }
+    if ([string]::IsNullOrWhiteSpace($currentOzonStateValue)) {
+        Set-EnvValue "OZON_STORAGE_STATE_FILE" "/app/.runtime/ozon-storage-state.json"
+        Write-Host "Detected saved Ozon session and enabled it in .env"
+    }
+}
+
 $envValues = @{}
 Get-Content -LiteralPath ".env" | ForEach-Object {
     if ($_ -match "^\s*([^#][^=]+)=(.*)$") {

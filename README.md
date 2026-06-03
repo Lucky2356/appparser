@@ -107,6 +107,12 @@ For Ozon, the most stable local setup is a saved browser session:
 
 Then set `OZON_STORAGE_STATE_FILE=/app/.runtime/ozon-storage-state.json` in `.env` before starting Docker. The compose file mounts `.runtime` into the API and worker containers.
 
+You can verify Ozon access without starting the full stack:
+
+```powershell
+.\scripts\test-ozon-access.ps1 -Query iphone
+```
+
 Backend:
 
 ```bash

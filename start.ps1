@@ -49,6 +49,33 @@ function Test-HttpOk($Url) {
     }
 }
 
+function Read-DotEnv($Path) {
+    $values = @{}
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $values
+    }
+    Get-Content -LiteralPath $Path | ForEach-Object {
+        if ($_ -match "^\s*([^#][^=]+)=(.*)$") {
+            $values[$matches[1].Trim()] = $matches[2].Trim()
+        }
+    }
+    return $values
+}
+
+function Resolve-LocalEnvPath($Value) {
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $Value
+    }
+    if ($Value.StartsWith("/app/.runtime/")) {
+        $fileName = Split-Path -Leaf $Value
+        return Join-Path $runtimeDir $fileName
+    }
+    if ([System.IO.Path]::IsPathRooted($Value)) {
+        return $Value
+    }
+    return Join-Path $root $Value
+}
+
 New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
 
 if (-not (Test-Path -LiteralPath $pythonExe)) {
@@ -113,6 +140,24 @@ $apiEnv = @{
     "PARSER_WB_429_RETRIES" = "1"
     "PYTHONPATH" = "$apiDir;$parserDir"
     "REDIS_URL" = "redis://127.0.0.1:6390/0"
+}
+
+$dotEnv = Read-DotEnv (Join-Path $root ".env")
+foreach ($key in @("OZON_COOKIES", "OZON_COOKIES_FILE", "OZON_STORAGE_STATE_FILE", "PARSER_HTTP_PROXY", "PARSER_USER_AGENT", "WILDBERRIES_COOKIES", "WILDBERRIES_COOKIES_FILE", "WILDBERRIES_STORAGE_STATE_FILE", "WILDBERRIES_DEST")) {
+    if ($dotEnv.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($dotEnv[$key])) {
+        $apiEnv[$key] = [string]$dotEnv[$key]
+    }
+}
+
+foreach ($pathKey in @("OZON_COOKIES_FILE", "OZON_STORAGE_STATE_FILE", "WILDBERRIES_COOKIES_FILE", "WILDBERRIES_STORAGE_STATE_FILE")) {
+    if ($apiEnv.ContainsKey($pathKey)) {
+        $apiEnv[$pathKey] = Resolve-LocalEnvPath ([string]$apiEnv[$pathKey])
+    }
+}
+
+$defaultOzonStatePath = Join-Path $runtimeDir "ozon-storage-state.json"
+if ((Test-Path -LiteralPath $defaultOzonStatePath) -and -not $apiEnv.ContainsKey("OZON_STORAGE_STATE_FILE")) {
+    $apiEnv["OZON_STORAGE_STATE_FILE"] = $defaultOzonStatePath
 }
 
 $webEnv = @{

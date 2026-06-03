@@ -47,3 +47,39 @@ with sync_playwright() as playwright:
 
 print(f"Saved Ozon storage state: {output}")
 '@ | & $Python - $ResolvedOutput
+
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
+
+$EnvPath = Join-Path $RepoRoot ".env"
+if (-not (Test-Path -LiteralPath $EnvPath)) {
+  Copy-Item -LiteralPath (Join-Path $RepoRoot ".env.example") -Destination $EnvPath
+  Write-Host "Created .env from .env.example"
+}
+
+function Set-EnvValue($Name, $Value) {
+  $content = Get-Content -LiteralPath $EnvPath -ErrorAction SilentlyContinue
+  $pattern = "^$([regex]::Escape($Name))="
+  if ($content -match $pattern) {
+    $updated = $content | ForEach-Object {
+      if ($_ -match $pattern) { "$Name=$Value" } else { $_ }
+    }
+    Set-Content -LiteralPath $EnvPath -Value $updated
+    return
+  }
+  Add-Content -LiteralPath $EnvPath -Value "$Name=$Value"
+}
+
+$repoFullPath = [System.IO.Path]::GetFullPath($RepoRoot).TrimEnd('\')
+$outputFullPath = [System.IO.Path]::GetFullPath($ResolvedOutput)
+if ($outputFullPath.StartsWith($repoFullPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+  $relativeOutput = $outputFullPath.Substring($repoFullPath.Length).TrimStart('\')
+  $dockerPath = "/app/" + ($relativeOutput -replace "\\", "/")
+  Set-EnvValue "OZON_STORAGE_STATE_FILE" $dockerPath
+  Set-EnvValue "PARSER_BROWSER_FALLBACK" "true"
+  Write-Host "Updated .env: OZON_STORAGE_STATE_FILE=$dockerPath"
+}
+else {
+  Write-Host "Saved session outside repo. Set OZON_STORAGE_STATE_FILE manually so Docker can access it."
+}
