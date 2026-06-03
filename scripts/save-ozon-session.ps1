@@ -23,7 +23,7 @@ $ResolvedOutput = if ([System.IO.Path]::IsPathRooted($OutputPath)) {
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ResolvedOutput) | Out-Null
 $env:PYTHONPATH = "$ApiDir;$ParserDir"
 
-@'
+$pythonCode = @'
 from pathlib import Path
 import sys
 
@@ -46,7 +46,9 @@ with sync_playwright() as playwright:
     browser.close()
 
 print(f"Saved Ozon storage state: {output}")
-'@ | & $Python - $ResolvedOutput
+'@
+
+& $Python -c $pythonCode $ResolvedOutput
 
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
